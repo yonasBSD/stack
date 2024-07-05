@@ -8,7 +8,7 @@ import { EMAIL_TEMPLATES_METADATA, validateEmailTemplateContent } from "@/email/
 import ErrorPage from "@/components/ui/error-page";
 import { TEditorConfiguration } from "@/components/email-editor/documents/editor/core";
 import { useToast } from "@/components/ui/use-toast";
-import { usePathname } from "next/navigation";
+import { usePathname, notFound } from "next/navigation";
 
 export default function PageClient(props: { templateType: EmailTemplateType }) {
   const app = useAdminApp();
@@ -20,8 +20,7 @@ export default function PageClient(props: { templateType: EmailTemplateType }) {
 
   if (!template) {
     // this should not happen, the outer server component should handle this
-    router.push("/404");
-    return null;
+    notFound();
   }
   
   if (!validateEmailTemplateContent(template.content)) {
