@@ -45,12 +45,13 @@ We all know how much overhead there is when starting a new project. Developers n
 - [x] Permissions [10. May 2024]
 - [x] New dashboard with Shadcn UI [16. May 2024]
 - [x] Email template editor [28. May 2024]
-- [x] OAuth scope authorization and access token [05. June 2024] 
+- [x] OAuth scope authorization and access token [05. June 2024]
+- [ ] Fully API endpoints with OpenAPI schema
+- [ ] Webhooks
+- [ ] Two factor authentication
+- [ ] Backend SDKs for Python
 - [ ] User analytics (retention, DAU/MAU, user segments, etc.)
-- [ ] Feature-rich email/notification system
-- [ ] Vue.js, Htmx, and Svelte support
-- [ ] Python, golang, and Java backend library
-- [ ] SSO/SAML integration
+- [ ] Integration with Postgres DB
 
 ## 📦 Installation & Setup
 
@@ -63,6 +64,11 @@ npx @stackframe/init-stack@latest
 You will then be guided through the installation process.
 
 For further configuration and usage, refer to [our documentation](https://docs.stack-auth.com).
+
+## 🌱 Some community projects built with Stack
+
+- [Next SaaSkit](https://github.com/wolfgunblood/nextjs-saaskit)
+- [Stack Exmaple](https://github.com/career-tokens/StackYCAuth)
 
 ## 🏗️ Development & Contribution
 
@@ -95,16 +101,20 @@ pnpm install
 pnpm run build
 
 # initialize the database and seed it with some data
-pnpm prisma seed
+pnpm prisma db push
+pnpm prisma db seed
 
 # Run code generation (repeat this after eg. changing the Prisma schema). This is part of the build script, but faster
 pnpm run codegen
 
 # Start the dev server
 pnpm run dev
+
+# In a different terminal, run tests in watch mode
+pnpm run test
 ```
 
-You can now open the dashboard at [http://localhost:8101](http://localhost:8101), API on port 8102, demo on port 8103, and docs on port 8104. You can also run the tests with `pnpm run test:watch`.
+You can now open the dashboard at [http://localhost:8101](http://localhost:8101), API on port 8102, demo on port 8103, docs on port 8104, Inbucket (e-mails) on port 8105, and Prisma Studio on port 8106.
 
 Your IDE may show an error on all `@stackframe/XYZ` imports. To fix this, simply restart the TypeScript language server; for example, in VSCode you can open the command palette (Ctrl+Shift+P) and run `Developer: Reload Window` or `TypeScript: Restart TS server`.
 

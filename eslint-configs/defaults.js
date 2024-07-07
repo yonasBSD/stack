@@ -8,7 +8,8 @@ module.exports = {
     tsconfigRootDir: process.cwd(),
   },
   rules: {
-    "indent": ["warn", 2, {
+    "key-spacing": "error",
+    "indent": ["error", 2, {
       SwitchCase: 1,
       ignoredNodes: [
         "TSIntersectionType",
@@ -54,6 +55,11 @@ module.exports = {
       {
         selector: 'SwitchCase > *.consequent[type!="BlockStatement"]',
         message: "Switch cases without blocks are disallowed.",
+      },
+      "error",
+      {
+        selector: "MemberExpression:has(Identifier[name='yup']) Identifier[name='url']",
+        message: "Use urlSchema from schema-fields.tsx instead of yup.string().url().",
       },
     ],
     "@typescript-eslint/no-misused-promises": [

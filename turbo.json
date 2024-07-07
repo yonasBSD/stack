@@ -7,7 +7,8 @@
     "SENTRY_*",
     "VERCEL_GIT_COMMIT_SHA",
     "NEXT_PUBLIC_POSTHOG_*",
-    "POSTHOG_*"
+    "POSTHOG_*",
+    "NODE_ENV"
   ],
   "tasks": {
     "build": {
@@ -54,13 +55,6 @@
       "cache": false
     },
     "typecheck": {
-      "cache": false
-    },
-    "test": {
-      "persistent": true,
-      "cache": false
-    },
-    "test:watch": {
       "cache": false
     },
     "generate-docs": {
