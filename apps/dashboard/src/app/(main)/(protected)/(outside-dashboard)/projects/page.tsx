@@ -1,7 +1,7 @@
-import PageClient from "./page-client";
-import Footer from "./footer";
 import { stackServerApp } from "@/stack";
 import { redirect } from "next/navigation";
+import Footer from "./footer";
+import PageClient from "./page-client";
 
 export const metadata = {
   title: "Projects",
@@ -16,7 +16,7 @@ export default async function Page() {
   if (projects.length === 0) {
     redirect("/new-project");
   }
-  
+
   return (
     <>
       <PageClient />

@@ -8,9 +8,10 @@ import { FormWarningText } from "./elements/form-warning";
 import { useStackApp } from "..";
 import { runAsynchronouslyWithAlert } from "@stackframe/stack-shared/dist/utils/promises";
 import { Button, Input, Label } from "@stackframe/stack-ui";
+import { yupObject, yupString, yupNumber, yupBoolean, yupArray, yupMixed } from "@stackframe/stack-shared/dist/schema-fields";
 
-const schema = yup.object().shape({
-  email: yup.string().email('Please enter a valid email').required('Please enter your email')
+const schema = yupObject({
+  email: yupString().email('Please enter a valid email').required('Please enter your email')
 });
 
 export function MagicLinkSignInForm() {
@@ -37,7 +38,7 @@ export function MagicLinkSignInForm() {
   };
 
   return (
-    <form 
+    <form
       className="flex flex-col items-stretch stack-scope"
       onSubmit={e => runAsynchronouslyWithAlert(handleSubmit(onSubmit)(e))}
       noValidate

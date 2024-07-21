@@ -42,8 +42,8 @@ export type EmailTemplateMetadata = {
   variables: EmailTemplateVariable[],
 };
 
-export const EMAIL_TEMPLATES_METADATA: Record<string, EmailTemplateMetadata> = {
-  'EMAIL_VERIFICATION': {
+export const EMAIL_TEMPLATES_METADATA = {
+  'email_verification': {
     label: "Email Verification",
     description: "Will be sent to the user when they sign-up with email/password",
     defaultContent: emailVerificationTemplate,
@@ -53,8 +53,8 @@ export const EMAIL_TEMPLATES_METADATA: Record<string, EmailTemplateMetadata> = {
       ...projectVars,
       { name: 'emailVerificationLink', label: 'Email Verification Link', defined: true, example: '<email verification link>' },
     ],
-  },
-  'PASSWORD_RESET': {
+  } satisfies EmailTemplateMetadata,
+  'password_reset': {
     label: "Password Reset",
     description: "Will be sent to the user when they request to reset their password (forgot password)",
     defaultContent: passwordResetTemplate,
@@ -64,8 +64,8 @@ export const EMAIL_TEMPLATES_METADATA: Record<string, EmailTemplateMetadata> = {
       ...projectVars,
       { name: 'passwordResetLink', label: 'Reset Password Link', defined: true, example: '<reset password link>' },
     ],
-  },
-  'MAGIC_LINK': {
+  } satisfies EmailTemplateMetadata,
+  'magic_link': {
     label: "Magic Link",
     description: "Will be sent to the user when they try to sign-up with magic link",
     defaultContent: magicLinkTemplate,
@@ -75,7 +75,7 @@ export const EMAIL_TEMPLATES_METADATA: Record<string, EmailTemplateMetadata> = {
       ...projectVars,
       { name: 'magicLink', label: 'Magic Link', defined: true, example: '<magic link>' },
     ],
-  },
+  } satisfies EmailTemplateMetadata,
 } as const;
 
 export function validateEmailTemplateContent(content: any): content is TEditorConfiguration {
@@ -96,11 +96,11 @@ type NestedObject = { [key: string]: any };
 export function objectStringMap<T extends NestedObject>(obj: T, func: (s: string) => string): T {
   function mapStrings(obj: NestedObject): NestedObject {
     const result: NestedObject = Array.isArray(obj) ? [] : {};
-        
+
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         const value = obj[key];
-                
+
         if (typeof value === 'string') {
           result[key] = func(value);
         } else if (typeof value === 'object' && value !== null) {
@@ -169,7 +169,7 @@ export function renderEmailTemplate(
   });
   const mergedSubject = renderString(subject, variables);
 
-  const component = (    
+  const component = (
     <Html>
       <Head />
       <Preview>{subject}</Preview>

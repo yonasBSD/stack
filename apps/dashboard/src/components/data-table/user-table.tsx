@@ -1,24 +1,24 @@
 'use client';
+import { ServerUser } from '@stackframe/stack';
+import { standardProviders } from "@stackframe/stack-shared/dist/interface/clientInterface";
+import { jsonStringSchema } from "@stackframe/stack-shared/dist/schema-fields";
+import { ColumnDef, Row, Table } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import * as yup from "yup";
-import { ServerUser } from '@stackframe/stack';
-import { ColumnDef, Row, Table } from "@tanstack/react-table";
+import { ActionDialog } from "../action-dialog";
+import { FormDialog } from "../form-dialog";
+import { DateField, InputField, SwitchField, TextAreaField } from "../form-fields";
+import { SimpleTooltip } from "../simple-tooltip";
+import Typography from "../ui/typography";
+import { ActionCell, AvatarCell, BadgeCell, DateCell, TextCell } from "./elements/cells";
 import { DataTableColumnHeader } from "./elements/column-header";
 import { DataTable } from "./elements/data-table";
 import { DataTableFacetedFilter } from "./elements/faceted-filter";
-import { standardProviders } from "@stackframe/stack-shared/dist/interface/clientInterface";
-import { ActionCell, AvatarCell, BadgeCell, DateCell, TextCell } from "./elements/cells";
 import { SearchToolbarItem } from "./elements/toolbar-items";
-import { FormDialog } from "../form-dialog";
-import { DateField, InputField, SwitchField, TextAreaField } from "../form-fields";
-import { ActionDialog } from "../action-dialog";
-import Typography from "../ui/typography";
-import { standardFilterFn } from "./elements/utils";
-import { SimpleTooltip } from "../simple-tooltip";
-import { yupJsonValidator } from "@stackframe/stack-shared/dist/utils/yup";
+import { arrayFilterFn, standardFilterFn } from "./elements/utils";
 
 export type ExtendedServerUser = ServerUser & {
-  authType: string,
+  authTypes: string[],
   emailVerified: 'verified' | 'unverified',
 };
 
@@ -27,9 +27,9 @@ function userToolbarRender<TData>(table: Table<TData>) {
     <>
       <SearchToolbarItem table={table} keyName="primaryEmail" placeholder="Filter by email" />
       <DataTableFacetedFilter
-        column={table.getColumn("authType")}
+        column={table.getColumn("authTypes")}
         title="Auth Method"
-        options={['email', ...standardProviders].map((provider) => ({
+        options={['email', 'password', ...standardProviders].map((provider) => ({
           value: provider,
           label: provider,
         }))}
@@ -51,11 +51,11 @@ const userEditFormSchema = yup.object({
   primaryEmail: yup.string().email("Primary Email must be a valid email address"),
   signedUpAt: yup.date().required(),
   primaryEmailVerified: yup.boolean().required(),
-  clientMetadata: yupJsonValidator,
-  serverMetadata: yupJsonValidator,
+  clientMetadata: jsonStringSchema,
+  serverMetadata: jsonStringSchema,
 });
 
-function EditUserDialog(props: { 
+function EditUserDialog(props: {
   user: ServerUser,
   open: boolean,
   onOpenChange: (open: boolean) => void,
@@ -80,7 +80,7 @@ function EditUserDialog(props: {
       <>
         <Typography variant='secondary'>ID: {props.user.id}</Typography>
         <InputField control={form.control} label="Display Name" name="displayName" />
-        
+
         <div className="flex gap-4 items-end">
           <div className="flex-1">
             <InputField control={form.control} label="Primary Email" name="primaryEmail" />
@@ -144,10 +144,6 @@ function UserActions({ row }: { row: Row<ExtendedServerUser> }) {
   );
 }
 
-function capitalizeFirstLetter(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 export const getCommonUserColumns = <T extends ExtendedServerUser>() => [
   {
     accessorKey: "profileImageUrl",
@@ -168,8 +164,8 @@ export const getCommonUserColumns = <T extends ExtendedServerUser>() => [
   {
     accessorKey: "primaryEmail",
     header: ({ column }) => <DataTableColumnHeader column={column} columnTitle="Primary Email" />,
-    cell: ({ row }) => <TextCell 
-      size={180} 
+    cell: ({ row }) => <TextCell
+      size={180}
       icon={row.original.emailVerified === "unverified" && <SimpleTooltip tooltip='Email not verified' type='warning'/>}>
       {row.original.primaryEmail}
     </TextCell>,
@@ -185,10 +181,10 @@ export const getCommonUserColumns = <T extends ExtendedServerUser>() => [
 const columns: ColumnDef<ExtendedServerUser>[] =  [
   ...getCommonUserColumns<ExtendedServerUser>(),
   {
-    accessorKey: "authType",
+    accessorKey: "authTypes",
     header: ({ column }) => <DataTableColumnHeader column={column} columnTitle="Auth Method" />,
-    cell: ({ row }) => <BadgeCell badges={[capitalizeFirstLetter(row.original.authType)]} />,
-    filterFn: standardFilterFn,
+    cell: ({ row }) => <BadgeCell badges={row.original.authTypes} />,
+    filterFn: arrayFilterFn,
   },
   {
     accessorKey: "signedUpAt",
@@ -204,17 +200,21 @@ const columns: ColumnDef<ExtendedServerUser>[] =  [
 export function extendUsers(users: ServerUser[]): ExtendedServerUser[] {
   return users.map((user) => ({
     ...user,
-    authType: (user.authWithEmail ? "email" : user.oauthProviders[0]) || "",
+    authTypes: [
+      ...user.emailAuthEnabled ? ["email"] : [],
+      ...user.hasPassword ? ["password"] : [],
+      ...user.oauthProviders.map(p => p.id),
+    ],
     emailVerified: user.primaryEmailVerified ? "verified" : "unverified",
   } satisfies ExtendedServerUser)).sort((a, b) => a.signedUpAt > b.signedUpAt ? -1 : 1);
 }
 
 export function UserTable(props: { users: ServerUser[] }) {
   const extendedUsers: ExtendedServerUser[] = useMemo(() => extendUsers(props.users), [props.users]);
-  return <DataTable 
-    data={extendedUsers} 
-    columns={columns} 
-    toolbarRender={userToolbarRender} 
-    defaultVisibility={{ emailVerified: false }} 
+  return <DataTable
+    data={extendedUsers}
+    columns={columns}
+    toolbarRender={userToolbarRender}
+    defaultVisibility={{ emailVerified: false }}
   />;
 }

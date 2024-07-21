@@ -6,4 +6,36 @@
   ],
   "typescript.tsdk": "node_modules/typescript/lib",
   "editor.tabSize": 2,
+  "cSpell.words": [
+    "cjsx",
+    "codegen",
+    "Crudl",
+    "ctsx",
+    "deindent",
+    "Falsey",
+    "frontends",
+    "hookform",
+    "hostable",
+    "INBUCKET",
+    "Millis",
+    "mjsx",
+    "mtsx",
+    "nextjs",
+    "Nicifiable",
+    "nicify",
+    "openapi",
+    "Proxied",
+    "reqs",
+    "stackframe",
+    "typehack",
+    "Uncapitalize",
+    "Whitespaces",
+    "wolfgunblood"
+  ],
+  "[typescript]": {
+      "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+      }
+  },
+  "terminal.integrated.wordSeparators": " (){}',\"`─‘’“”|"
 }

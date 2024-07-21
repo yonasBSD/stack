@@ -2,7 +2,7 @@
 
 import { MessageCard } from "../components/message-cards/message-card";
 import { StackClientApp, useStackApp } from "..";
-import { use } from "react";
+import React from "react";
 import PasswordResetForm from "../components/password-reset-form";
 import { cacheFunction } from "@stackframe/stack-shared/dist/utils/caches";
 import { KnownErrors } from "@stackframe/stack-shared";
@@ -15,9 +15,9 @@ const cachedVerifyPasswordResetCode = cacheFunction(async (stackApp: StackClient
 export function PasswordReset({
   searchParams,
   fullPage = false,
-}: { 
+}: {
   searchParams?: Record<string, string>,
-  fullPage?: boolean, 
+  fullPage?: boolean,
 }) {
   const stackApp = useStackApp();
 
@@ -44,8 +44,8 @@ export function PasswordReset({
     return invalidJsx;
   }
 
-  const error = use(cachedVerifyPasswordResetCode(stackApp, code));
-  
+  const error = React.use(cachedVerifyPasswordResetCode(stackApp, code));
+
   if (error instanceof KnownErrors.VerificationCodeNotFound) {
     return invalidJsx;
   } else if (error instanceof KnownErrors.VerificationCodeExpired) {

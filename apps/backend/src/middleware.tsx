@@ -6,11 +6,12 @@ import type { NextRequest } from 'next/server';
 const corsAllowedRequestHeaders = [
   // General
   'content-type',
+  'authorization',  // used for OAuth basic authentication
   'x-stack-project-id',
   'x-stack-override-error-status',
   'x-stack-random-nonce',  // used to forcefully disable some caches
   'x-stack-client-version',
-  
+
   // Project auth
   'x-stack-access-type',
   'x-stack-publishable-client-key',
@@ -28,7 +29,7 @@ const corsAllowedResponseHeaders = [
   'x-stack-actual-status',
   'x-stack-known-error',
 ];
- 
+
 // This function can be marked `async` if using `await` inside
 export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
@@ -40,7 +41,7 @@ export async function middleware(request: NextRequest) {
       // CORS headers
       ...!isApiRequest ? {} : {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": corsAllowedRequestHeaders.join(', '),
         "Access-Control-Expose-Headers": corsAllowedResponseHeaders.join(', '),
       },
@@ -55,7 +56,7 @@ export async function middleware(request: NextRequest) {
 
   return NextResponse.next(responseInit);
 }
- 
+
 // See "Matching Paths" below to learn more
 export const config = {
   matcher: '/:path*',

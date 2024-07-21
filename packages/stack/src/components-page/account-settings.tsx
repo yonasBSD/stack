@@ -10,13 +10,13 @@ import { getPasswordError } from '@stackframe/stack-shared/dist/helpers/password
 import { Button, Card, CardContent, CardFooter, CardHeader, Container, Input, Label, PasswordInput, Typography, cn } from '@stackframe/stack-ui';
 
 function SettingSection(props: {
-  title: string, 
-  desc: string, 
-  buttonText?: string, 
+  title: string,
+  desc: string,
+  buttonText?: string,
   buttonDisabled?: boolean,
   onButtonClick?: React.ComponentProps<typeof Button>["onClick"],
   buttonVariant?: 'default' | 'secondary',
-  children?: React.ReactNode, 
+  children?: React.ReactNode,
 }) {
   return (
     <Card>
@@ -95,9 +95,9 @@ function EmailVerificationSection() {
       desc='We want to make sure that you own the email address.'
       buttonDisabled={emailSent}
       buttonText={
-        !user?.primaryEmailVerified ? 
-          emailSent ? 
-            'Email sent!' : 
+        !user?.primaryEmailVerified ?
+          emailSent ?
+            'Email sent!' :
             'Send Email'
           : undefined
       }
@@ -106,7 +106,7 @@ function EmailVerificationSection() {
         setEmailSent(true);
       }}
     >
-      {user?.primaryEmailVerified ? 
+      {user?.primaryEmailVerified ?
         <Typography variant='success'>Your email has been verified</Typography> :
         <Typography variant='destructive'>Your email has not been verified</Typography>}
     </SettingSection>
@@ -119,6 +119,9 @@ function PasswordSection() {
   const [oldPasswordError, setOldPasswordError] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
   const [newPasswordError, setNewPasswordError] = useState<string>('');
+  const [repeatNewPassword, setRepeatNewPassword] = useState<string>('');
+  const [repeatNewPasswordError, setRepeatNewPasswordError] = useState<string>('');
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   if (!user?.hasPassword) {
     return null;
@@ -128,37 +131,52 @@ function PasswordSection() {
     <SettingSection
       title='Password'
       desc='Change your password here.'
-      buttonDisabled={!oldPassword || !newPassword}
-      buttonText='Save'
+      buttonDisabled={passwordChanged || (!oldPassword && !newPassword && !repeatNewPassword)}
+      buttonText={passwordChanged ? "Password changed!" : 'Update Password'}
       onButtonClick={async () => {
-        if (oldPassword && newPassword) {
+        setOldPasswordError('');
+        setNewPasswordError('');
+        setRepeatNewPasswordError('');
+        if (!oldPassword) {
+          setOldPasswordError('Please enter your old password');
+          return;
+        } else if (!newPassword) {
+          setNewPasswordError('Please enter a new password');
+          return;
+        } else if (!repeatNewPassword) {
+            setRepeatNewPasswordError('Please repeat your new password');
+            return;
+        } else {
           const errorMessage = getPasswordError(newPassword);
           if (errorMessage) {
             setNewPasswordError(errorMessage.message);
           } else {
+            if (newPassword !== repeatNewPassword) {
+              setRepeatNewPasswordError('Passwords do not match');
+              return;
+            }
             const errorCode = await user.updatePassword({ oldPassword, newPassword });
             if (errorCode) {
               setOldPasswordError('Incorrect password');
             } else {
               setOldPassword('');
               setNewPassword('');
+              setRepeatNewPassword('');
+              setPasswordChanged(true);
             }
           }
-        } else if (oldPassword && !newPassword) {
-          setNewPasswordError('Please enter a new password');
-        } else if (newPassword && !oldPassword) {
-          setOldPasswordError('Please enter your old password');
         }
       }}
     >
       <div className='flex flex-col'>
         <Label htmlFor='old-password' className='mb-1'>Old Password</Label>
         <PasswordInput
-          id='old-password' 
-          value={oldPassword} 
+          id='old-password'
+          value={oldPassword}
           onChange={(e) => {
             setOldPassword(e.target.value);
             setOldPasswordError('');
+            setPasswordChanged(false);
           }}
         />
         <FormWarningText text={oldPasswordError} />
@@ -166,14 +184,28 @@ function PasswordSection() {
       <div className='flex flex-col'>
         <Label htmlFor='new-password' className='mb-1'>New Password</Label>
         <PasswordInput
-          id='new-password' 
-          value={newPassword} 
+          id='new-password'
+          value={newPassword}
           onChange={(e) => {
             setNewPassword(e.target.value);
             setNewPasswordError('');
+            setPasswordChanged(false);
           }}
         />
         <FormWarningText text={newPasswordError} />
+      </div>
+      <div className='flex flex-col'>
+        <Label htmlFor='repeat-new-password' className='mb-1'>Repeat New Password</Label>
+        <PasswordInput
+          id='repeat-new-password'
+          value={repeatNewPassword}
+          onChange={(e) => {
+            setRepeatNewPassword(e.target.value);
+            setRepeatNewPasswordError('');
+            setPasswordChanged(false);
+          }}
+        />
+        <FormWarningText text={repeatNewPasswordError} />
       </div>
     </SettingSection>
   );
@@ -205,7 +237,7 @@ export function AccountSettings({ fullPage=false }: { fullPage?: boolean }) {
         <Typography type='h2'>Account Settings</Typography>
         <Typography variant='secondary' type='label'>Manage your account</Typography>
       </div>
-      
+
       <ProfileSection />
       <EmailVerificationSection />
       <PasswordSection />

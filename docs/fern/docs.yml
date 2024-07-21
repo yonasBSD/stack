@@ -1,6 +1,11 @@
 instances:
   - url: https://stack-auth.docs.buildwithfern.com
     custom-domain: docs.stack-auth.com
+    edit-this-page:
+      github:
+        owner: stack-auth
+        repo: stack
+        branch: dev
 title: Stack Auth Documentation
 
 tabs:
@@ -108,6 +113,9 @@ navigation:
       - api: Server API Reference
         slug: server
         api-name: server
+      - api: Admin API Reference
+        slug: admin
+        api-name: admin
 
 navbar-links:
   - type: secondary

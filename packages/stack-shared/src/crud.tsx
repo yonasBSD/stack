@@ -4,7 +4,9 @@ import { FilterUndefined, filterUndefined } from './utils/objects';
 
 export type AccessType = "client" | "server" | "admin";
 export type CrudOperation = "create" | "read" | "update" | "delete";
+export type CrudlOperation = "create" | "read" | "update" | "delete" | "list";
 export type AccessTypeXCrudOperation = `${AccessType}${Capitalize<CrudOperation>}`;
+export type AccessTypeXCrudlOperation = `${AccessType}${Capitalize<CrudlOperation>}`;
 
 declare module 'yup' {
   export interface CustomSchemaMetadata {
@@ -21,20 +23,16 @@ type ShownEndpointDocumentation = {
   description: string,
   tags?: string[],
 };
-export type EndpointDocumentation = 
-  | (
-    { hidden: true } & Partial<ShownEndpointDocumentation>
-  )
-  | (
-    { hidden?: boolean } & ShownEndpointDocumentation
-  );
+export type EndpointDocumentation =
+  | ({ hidden: true } & Partial<ShownEndpointDocumentation>)
+  | ({ hidden?: boolean } & ShownEndpointDocumentation);
 
 
 type InnerCrudSchema<
-  CreateSchema extends yup.Schema<any> | undefined = yup.Schema<any> | undefined,
-  ReadSchema extends yup.Schema<any> | undefined = yup.Schema<any> | undefined,
-  UpdateSchema extends yup.Schema<any> | undefined = yup.Schema<any> | undefined,
-  DeleteSchema extends yup.Schema<any> | undefined = yup.Schema<any> | undefined,
+  CreateSchema extends yup.AnySchema | undefined = yup.AnySchema | undefined,
+  ReadSchema extends yup.AnySchema | undefined = yup.AnySchema | undefined,
+  UpdateSchema extends yup.AnySchema | undefined = yup.AnySchema | undefined,
+  DeleteSchema extends yup.AnySchema | undefined = yup.AnySchema | undefined,
 > = {
   createSchema: CreateSchema,
   createDocs: EndpointDocumentation | undefined,
@@ -66,7 +64,7 @@ export type CrudSchema<
 };
 
 export type CrudSchemaCreationOptions = {
-  [K in AccessTypeXCrudOperation as `${K}Schema`]?: yup.Schema<any>
+  [K in AccessTypeXCrudOperation as `${K}Schema`]?: yup.AnySchema
 };
 
 type FillInOptionalsPrepareStep<O extends CrudSchemaCreationOptions> =
@@ -77,12 +75,12 @@ type FillInOptionalsStep<O extends FillInOptionalsPrepareStep<CrudSchemaCreation
   clientReadSchema: NullishCoalesce<O['clientReadSchema'], undefined>,
   clientUpdateSchema: NullishCoalesce<O['clientUpdateSchema'], undefined>,
   clientDeleteSchema: NullishCoalesce<O['clientDeleteSchema'], undefined>,
-  
+
   serverCreateSchema: NullishCoalesce<O['serverCreateSchema'], O['clientCreateSchema']>,
   serverReadSchema: NullishCoalesce<O['serverReadSchema'], O['clientReadSchema']>,
   serverUpdateSchema: NullishCoalesce<O['serverUpdateSchema'], O['clientUpdateSchema']>,
   serverDeleteSchema: NullishCoalesce<O['serverDeleteSchema'], O['clientDeleteSchema']>,
-  
+
   adminCreateSchema: NullishCoalesce<O['adminCreateSchema'], O['serverCreateSchema']>,
   adminReadSchema: NullishCoalesce<O['adminReadSchema'], O['serverReadSchema']>,
   adminUpdateSchema: NullishCoalesce<O['adminUpdateSchema'], O['serverUpdateSchema']>,
@@ -103,7 +101,11 @@ type InnerCrudTypeOf<S extends InnerCrudSchema> =
   & (S['createSchema'] extends {} ? { Create: yup.InferType<S['createSchema']> } : {})
   & (S['readSchema'] extends {} ? { Read: yup.InferType<S['readSchema']> } : {})
   & (S['updateSchema'] extends {} ? { Update: yup.InferType<S['updateSchema']> } : {})
-  & (S['deleteSchema'] extends {} ? { Delete: yup.InferType<S['deleteSchema']> } : {});
+  & (S['deleteSchema'] extends {} ? { Delete: yup.InferType<S['deleteSchema']> } : {})
+  & (S['readSchema'] extends {} ? { List: {
+    items: yup.InferType<S['readSchema']>[],
+    is_paginated: boolean,
+  }, } : {});
 
 export type CrudTypeOf<S extends CrudSchema> = {
   Client: InnerCrudTypeOf<S['client']>,
@@ -112,7 +114,7 @@ export type CrudTypeOf<S extends CrudSchema> = {
 }
 
 type CrudDocsCreationOptions<SO extends CrudSchemaCreationOptions> = {
-  [X in AccessTypeXCrudOperation as (X extends `${infer A}Read` ? X | `${A}List` : X)]?: EndpointDocumentation
+  [X in AccessTypeXCrudlOperation]?: EndpointDocumentation
 };
 
 export function createCrud<SO extends CrudSchemaCreationOptions>(options: SO & { docs?: CrudDocsCreationOptions<SO> }): CrudSchemaFromOptions<SO> {

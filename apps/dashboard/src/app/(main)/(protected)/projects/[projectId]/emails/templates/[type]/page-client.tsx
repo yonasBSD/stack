@@ -1,6 +1,6 @@
 'use client';
 import EmailEditor from "@stackframe/stack-emails/dist/editor/editor";
-import { EmailTemplateType } from "@stackframe/stack-shared/dist/interface/serverInterface";
+import { EmailTemplateType } from "@stackframe/stack-shared/dist/interface/crud/email-templates";
 import { useAdminApp } from "../../../use-admin-app";
 import { confirmAlertMessage, useRouter, useRouterConfirm } from "@/components/router";
 import { EMAIL_TEMPLATES_METADATA, validateEmailTemplateContent } from "@stackframe/stack-emails/dist/utils";
@@ -17,13 +17,13 @@ export default function PageClient(props: { templateType: EmailTemplateType }) {
   const pathname = usePathname();
   const { setNeedConfirm } = useRouterConfirm();
   const { toast } = useToast();
-  const project = app.useProjectAdmin();
+  const project = app.useProject();
 
   if (!template) {
     // this should not happen, the outer server component should handle this
     notFound();
   }
-  
+
   if (!validateEmailTemplateContent(template.content)) {
     return <ErrorPage
       title="Invalid Template"
@@ -46,11 +46,11 @@ export default function PageClient(props: { templateType: EmailTemplateType }) {
     <div className="h-[calc(100vh-3.5rem)] overflow-hidden">
       <EmailEditor
         resetSignal={pathname}
-        document={template.content} 
+        document={template.content}
         subject={template.subject}
         metadata={EMAIL_TEMPLATES_METADATA[props.templateType]}
-        onSave={onSave} 
-        onCancel={onCancel} 
+        onSave={onSave}
+        onCancel={onCancel}
         confirmAlertMessage={confirmAlertMessage}
         setNeedConfirm={setNeedConfirm}
         projectDisplayName={project.displayName}

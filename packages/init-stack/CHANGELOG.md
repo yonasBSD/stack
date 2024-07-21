@@ -1,5 +1,13 @@
 # @stackframe/init-stack
 
+## 2.5.5
+
+## 2.5.4
+
+### Patch Changes
+
+- Backend rework
+
 ## 2.5.3
 
 ## 2.5.2

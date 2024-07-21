@@ -1,18 +1,17 @@
 'use client';
-import { AuthPage, useUser } from "@stackframe/stack";
-import * as yup from "yup";
-import { Separator } from "@/components/ui/separator";
-import { yupResolver } from "@hookform/resolvers/yup";
-import { Form } from "@/components/ui/form";
-import { InputField, SwitchListField } from "@/components/form-fields";
-import { runAsynchronously, runAsynchronouslyWithAlert, wait } from "@stackframe/stack-shared/dist/utils/promises";
-import { useRouter } from "@/components/router";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import Typography from "@/components/ui/typography";
-import { toSharedProvider } from "@stackframe/stack-shared/dist/interface/clientInterface";
 import { BrowserFrame } from "@/components/browser-frame";
+import { InputField, SwitchListField } from "@/components/form-fields";
+import { useRouter } from "@/components/router";
+import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
+import { Separator } from "@/components/ui/separator";
+import Typography from "@/components/ui/typography";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { AuthPage, useUser } from "@stackframe/stack";
+import { runAsynchronouslyWithAlert, wait } from "@stackframe/stack-shared/dist/utils/promises";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import * as yup from "yup";
 
 export const projectFormSchema = yup.object({
   displayName: yup.string().min(1, "Display name is required").required(),
@@ -38,12 +37,11 @@ export default function PageClient () {
 
   const mockProject = {
     id: "id",
-    credentialEnabled: form.watch("signInMethods").includes("credential"),
-    magicLinkEnabled: form.watch("signInMethods").includes("magicLink"),
-    oauthProviders: (["google", "facebook", "github", "microsoft"] as const).map(provider => ({
-      id: provider,
-      enabled: form.watch("signInMethods").includes(provider),
-    })),
+    config: {
+      credentialEnabled: form.watch("signInMethods").includes("credential"),
+      magicLinkEnabled: form.watch("signInMethods").includes("magicLink"),
+      oauthProviders: form.watch('signInMethods').filter((method) => ["google", "github", "microsoft", "facebook"].includes(method)).map(provider => ({ id: provider })),
+    }
   };
 
   const onSubmit = async (values: ProjectFormValues, e?: React.BaseSyntheticEvent) => {
@@ -59,8 +57,8 @@ export default function PageClient () {
           oauthProviders: (["google", "facebook", "github", "microsoft"] as const).map(provider => ({
             id: provider,
             enabled: values.signInMethods.includes(provider),
-            type: toSharedProvider(provider),
-          })).filter(({ enabled }) => enabled),
+            type: 'shared'
+          } as const)).filter(({ enabled }) => enabled),
         }
       });
       router.push('/projects/' + newProject.id);
@@ -77,7 +75,7 @@ export default function PageClient () {
           <div className="flex justify-center mb-4">
             <Typography type='h2'>Create a new project</Typography>
           </div>
-            
+
           <Form {...form}>
             <form onSubmit={e => runAsynchronouslyWithAlert(form.handleSubmit(onSubmit)(e))} className="space-y-4">
 
@@ -115,16 +113,16 @@ export default function PageClient () {
                   <div className='w-full sm:max-w-xs m-auto scale-90' inert=''>
                     {/* a transparent cover that prevents the card being clicked */}
                     <div className="absolute inset-0 bg-transparent z-10"></div>
-                    <AuthPage 
-                      type="sign-in" 
-                      mockProject={mockProject} 
+                    <AuthPage
+                      type="sign-in"
+                      mockProject={mockProject}
                     />
                   </div>
                 </div>
               </BrowserFrame>
             </div>
           )}
-      </div> 
+      </div>
     </div>
   );
 }

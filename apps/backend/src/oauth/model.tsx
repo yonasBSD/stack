@@ -7,8 +7,17 @@ import { validateRedirectUrl } from "@/lib/redirect-urls";
 import { checkApiKeySet } from "@/lib/api-keys";
 import { getProject } from "@/lib/projects";
 import { StackAssertionError, captureError } from "@stackframe/stack-shared/dist/utils/errors";
+import { KnownErrors } from "@stackframe/stack-shared";
 
-const enabledScopes = ["openid"];
+const enabledScopes = ["legacy"];
+
+function assertScopeIsValid(scope: string[]) {
+  for (const s of scope) {
+    if (!checkScope(s)) {
+      throw new KnownErrors.InvalidScope(s);
+    }
+  }
+}
 
 function checkScope(scope: string | string[] | undefined) {
   if (typeof scope === "string") {
@@ -28,17 +37,17 @@ export class OAuthModel implements AuthorizationCodeModel {
         return false;
       }
     }
-    
+
     const project = await getProject(clientId);
     if (!project) {
       return false;
     }
 
-    const redirectUris = project.evaluatedConfig.domains.map(
-      ({ domain, handlerPath }) => new URL(handlerPath, domain).toString()
+    const redirectUris = project.config.domains.map(
+      ({ domain, handler_path }) => new URL(handler_path, domain).toString()
     );
 
-    if (redirectUris.length === 0 && project.evaluatedConfig.allowLocalhost) {
+    if (redirectUris.length === 0 && project.config.allow_localhost) {
       redirectUris.push("http://localhost");
     }
 
@@ -62,6 +71,7 @@ export class OAuthModel implements AuthorizationCodeModel {
   }
 
   async generateAccessToken(client: Client, user: User, scope: string[]): Promise<string> {
+    assertScopeIsValid(scope);
     return await encodeAccessToken({
       projectId: client.id,
       userId: user.id,
@@ -69,6 +79,7 @@ export class OAuthModel implements AuthorizationCodeModel {
   }
 
   async generateRefreshToken(client: Client, user: User, scope: string[]): Promise<string> {
+    assertScopeIsValid(scope);
     return generateSecureRandomString();
   }
 
@@ -161,6 +172,10 @@ export class OAuthModel implements AuthorizationCodeModel {
     client: Client,
     user: User
   ): Promise<AuthorizationCode | Falsey> {
+    if (!code.scope) {
+      throw new KnownErrors.InvalidScope("<empty string>");
+    }
+    assertScopeIsValid(code.scope);
     await prismaClient.projectUserAuthorizationCode.create({
       data: {
         authorizationCode: code.authorizationCode,
@@ -243,8 +258,8 @@ export class OAuthModel implements AuthorizationCodeModel {
 
     return validateRedirectUrl(
       redirect_uri,
-      project.evaluatedConfig.domains,
-      project.evaluatedConfig.allowLocalhost,
+      project.config.domains,
+      project.config.allow_localhost,
     );
   }
 }

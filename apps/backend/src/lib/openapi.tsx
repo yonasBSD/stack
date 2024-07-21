@@ -2,6 +2,7 @@ import { SmartRouteHandler } from '@/route-handlers/smart-route-handler';
 import { EndpointDocumentation } from '@stackframe/stack-shared/dist/crud';
 import { StackAssertionError } from '@stackframe/stack-shared/dist/utils/errors';
 import { HttpMethod } from '@stackframe/stack-shared/dist/utils/http';
+import { typedEntries, typedFromEntries } from '@stackframe/stack-shared/dist/utils/objects';
 import { deindent } from '@stackframe/stack-shared/dist/utils/strings';
 import * as yup from 'yup';
 
@@ -16,7 +17,7 @@ export function parseOpenAPI(options: {
       version: '1.0.0',
     },
     servers: [{
-      url: 'https://app.stack-auth.com/api/v1',
+      url: 'https://api.stack-auth.com/api/v1',
       description: 'Stack REST API',
     }],
     paths: Object.fromEntries(
@@ -115,7 +116,7 @@ function parseRouteHandler(options: {
   return result;
 }
 
-function getFieldSchema(field: yup.SchemaFieldDescription): { type: string, items?: any } | undefined {
+function getFieldSchema(field: yup.SchemaFieldDescription): { type: string, items?: any, properties?: any, required?: any } | undefined {
   const meta = "meta" in field ? field.meta : {};
   if (meta?.openapiField?.hidden) {
     return undefined;
@@ -125,7 +126,7 @@ function getFieldSchema(field: yup.SchemaFieldDescription): { type: string, item
     example: meta?.openapiField?.exampleValue,
     description: meta?.openapiField?.description,
   };
-  
+
   switch (field.type) {
     case 'string':
     case 'number':
@@ -136,7 +137,15 @@ function getFieldSchema(field: yup.SchemaFieldDescription): { type: string, item
       return { type: 'object', ...openapiFieldExtra };
     }
     case 'object': {
-      return { type: 'object', ...openapiFieldExtra };
+      return {
+        type: 'object',
+        properties: typedFromEntries(typedEntries((field as any).fields)
+          .map(([key, field]) => [key, getFieldSchema(field)])),
+        required: typedEntries((field as any).fields)
+          .filter(([_, field]) => !(field as any).optional && !(field as any).nullable)
+          .map(([key]) => key),
+        ...openapiFieldExtra
+      };
     }
     case 'array': {
       return { type: 'array', items: getFieldSchema((field as any).innerType), ...openapiFieldExtra };
@@ -247,12 +256,16 @@ export function parseOverload(options: {
     };
   }
 
+  if (endpointDocumentation.hidden) {
+    return undefined;
+  }
+
   return {
     summary: endpointDocumentation.summary,
     description: endpointDocumentation.description,
     parameters: queryParameters.concat(pathParameters),
     requestBody,
-    tags: endpointDocumentation.tags ?? ["Uncategorized"],
+    tags: endpointDocumentation.tags ?? ["Others"],
     responses: {
       200: {
         description: 'Successful response',

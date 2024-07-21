@@ -34,11 +34,11 @@ export function registerErrorSink(sink: (location: string, error: unknown) => vo
   errorSinks.add(sink);
 }
 registerErrorSink((location, ...args) => {
-  console.error(`Error in ${location}:`, ...args);
+  console.error(`\x1b[41mError in ${location}:`, ...args, "\x1b[0m");
 });
-registerErrorSink((location, error, ...args) => {
+registerErrorSink((location, error, ...extraArgs) => {
   globalVar.stackCapturedErrors = globalVar.stackCapturedErrors ?? [];
-  globalVar.stackCapturedErrors.push({ location, error: args, extraArgs: args });
+  globalVar.stackCapturedErrors.push({ location, error, extraArgs });
 });
 
 export function captureError(location: string, error: unknown): void {
@@ -53,9 +53,14 @@ type Status = {
   message: string,
 };
 
-type StatusErrorConstructorParameters = [
+type StatusErrorConstructorParameters =
+| [
+  status: Status,
+  message?: string
+]
+| [
   statusCode: number | Status,
-  message?: string,
+  message: string,
 ];
 
 export class StatusError extends Error {
@@ -114,9 +119,11 @@ export class StatusError extends Error {
       message ??= status.message;
       status = status.statusCode;
     }
-    message ??= "Server Error";
     super(message);
     this.statusCode = status;
+    if (!message) {
+      throw new StackAssertionError("StatusError always requires a message unless a Status object is passed", {}, { cause: this });
+    }
   }
 
   public isClientError() {
@@ -141,6 +148,17 @@ export class StatusError extends Error {
     };
   }
 
+  public toDescriptiveJson(): Json {
+    return {
+      status_code: this.getStatusCode(),
+      message: this.message,
+      headers: this.getHeaders(),
+    };
+  }
+
+  /**
+   * @deprecated this is not a good way to make status errors human-readable, use toDescriptiveJson instead
+   */
   public toHttpJson(): Json {
     return {
       status_code: this.statusCode,
@@ -149,3 +167,4 @@ export class StatusError extends Error {
     };
   }
 }
+StatusError.prototype.name = "StatusError";
