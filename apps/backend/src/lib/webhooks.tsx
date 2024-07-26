@@ -16,21 +16,21 @@ export async function sendWebhooks(options: {
       return;
     }
     const data = JSON.parse(dataString);
-    for (const { url, projectId } of data) {
+    for (const { projectId } of data) {
       if (projectId !== options.projectId) {
         continue;
       }
 
       await svix.application.getOrCreate({ uid: projectId, name: projectId });
-      await svix.endpoint.create(projectId, { url });
       await svix.message.create(projectId, {
         eventType: options.type,
         payload: {
+          type: options.type,
           data: options.data,
         },
       });
     }
   } catch (error) {
-    captureError("Failed to send webhook", error);
+    captureError("send-webhook", error);
   }
 }
