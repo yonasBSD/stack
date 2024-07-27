@@ -1,4 +1,4 @@
-import { ensureTeamMembershipExist } from "@/lib/db-checks";
+import { ensureTeamExist, ensureTeamMembershipExist, ensureUserHasTeamPermission } from "@/lib/request-checks";
 import { isTeamSystemPermission, teamSystemPermissionStringToDBType } from "@/lib/permissions";
 import { sendWebhooks } from "@/lib/webhooks";
 import { prismaClient } from "@/prisma-client";
@@ -10,6 +10,7 @@ import { teamsCrud } from "@stackframe/stack-shared/dist/interface/crud/teams";
 import { userIdOrMeSchema, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
 import { StatusError, throwErr } from "@stackframe/stack-shared/dist/utils/errors";
 import { createLazyProxy } from "@stackframe/stack-shared/dist/utils/proxies";
+import { addUserToTeam } from "../team-memberships/crud";
 
 
 export function teamPrismaToCrud(prisma: Prisma.TeamGetPayload<{}>) {
@@ -42,32 +43,12 @@ export const teamsCrudHandlers = createLazyProxy(() => createCrudHandlers(teamsC
         if (!auth.user) {
           throw new StatusError(StatusError.Unauthorized, "You must be logged in to create a team with the current user as a member.");
         }
-        await tx.teamMember.create({
-          data: {
-            projectId: auth.project.id,
-            projectUserId: auth.user.id,
-            teamId: db.teamId,
-            directPermissions: {
-              create: auth.project.config.team_creator_default_permissions.map((p) => {
-                if (isTeamSystemPermission(p.id)) {
-                  return {
-                    systemPermission: teamSystemPermissionStringToDBType(p.id),
-                  };
-                } else {
-                  return {
-                    permission: {
-                      connect: {
-                        projectConfigId_queryableId: {
-                          projectConfigId: auth.project.config.id,
-                          queryableId: p.id,
-                        },
-                      }
-                    }
-                  };
-                }
-              }),
-            },
-          }
+
+        await addUserToTeam(tx, {
+          project: auth.project,
+          teamId: db.teamId,
+          userId: auth.user.id,
+          type: 'creator',
         });
       }
 
@@ -92,7 +73,7 @@ export const teamsCrudHandlers = createLazyProxy(() => createCrudHandlers(teamsC
         await ensureTeamMembershipExist(tx, {
           projectId: auth.project.id,
           teamId: params.team_id,
-          userId: auth.user?.id ?? throwErr("Client must be logged in to read a team"),
+          userId: auth.user?.id ?? throwErr('auth.user is null'),
         });
       }
 
@@ -115,29 +96,53 @@ export const teamsCrudHandlers = createLazyProxy(() => createCrudHandlers(teamsC
     return teamPrismaToCrud(db);
   },
   onUpdate: async ({ params, auth, data }) => {
-    const db = await prismaClient.team.update({
-      where: {
-        projectId_teamId: {
-          projectId: auth.project.id,
+    const db = await prismaClient.$transaction(async (tx) => {
+      if (auth.type === 'client') {
+        await ensureUserHasTeamPermission(tx, {
+          project: auth.project,
           teamId: params.team_id,
+          userId: auth.user?.id ?? throwErr('auth.user is null'),
+          permissionId: "$update_team",
+        });
+      }
+
+      await ensureTeamExist(tx, { projectId: auth.project.id, teamId: params.team_id });
+
+      return await tx.team.update({
+        where: {
+          projectId_teamId: {
+            projectId: auth.project.id,
+            teamId: params.team_id,
+          },
         },
-      },
-      data: {
-        displayName: data.display_name,
-        profileImageUrl: data.profile_image_url,
-      },
+        data: {
+          displayName: data.display_name,
+          profileImageUrl: data.profile_image_url,
+        },
+      });
     });
 
     return teamPrismaToCrud(db);
   },
   onDelete: async ({ params, auth }) => {
-    await prismaClient.team.delete({
-      where: {
-        projectId_teamId: {
-          projectId: auth.project.id,
+    await prismaClient.$transaction(async (tx) => {
+      if (auth.type === 'client') {
+        await ensureUserHasTeamPermission(tx, {
+          project: auth.project,
           teamId: params.team_id,
+          userId: auth.user?.id ?? throwErr('auth.user is null'),
+          permissionId: "$delete_team",
+        });
+      }
+
+      await tx.team.delete({
+        where: {
+          projectId_teamId: {
+            projectId: auth.project.id,
+            teamId: params.team_id,
+          },
         },
-      },
+      });
     });
 
     await sendWebhooks({

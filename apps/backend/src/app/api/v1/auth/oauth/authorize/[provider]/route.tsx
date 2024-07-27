@@ -4,7 +4,6 @@ import { decodeAccessToken, oauthCookieSchema } from "@/lib/tokens";
 import { getProvider } from "@/oauth";
 import { prismaClient } from "@/prisma-client";
 import { createSmartRouteHandler } from "@/route-handlers/smart-route-handler";
-import { sharedProviders } from "@stackframe/stack-shared/dist/interface/clientInterface";
 import { KnownErrors } from "@stackframe/stack-shared/dist/known-errors";
 import { yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
 import { getNodeEnvironment } from "@stackframe/stack-shared/dist/utils/env";
@@ -32,6 +31,7 @@ export const GET = createSmartRouteHandler({
       token: yupString().default(""),
       provider_scope: yupString().optional(),
       error_redirect_url: yupString().optional(),
+      after_callback_redirect_url: yupString().optional(),
 
       // oauth parameters
       client_id: yupString().required(),
@@ -76,7 +76,7 @@ export const GET = createSmartRouteHandler({
         throw new StatusError(StatusError.Forbidden, "The access token is not valid for this project");
       }
 
-      if (query.provider_scope && sharedProviders.includes(provider.type as any)) {
+      if (query.provider_scope && provider.type === "shared") {
         throw new KnownErrors.OAuthExtraScopeNotAvailableWithSharedOAuthKeys();
       }
       projectUserId = userId;
@@ -109,6 +109,7 @@ export const GET = createSmartRouteHandler({
           projectUserId: projectUserId,
           providerScope: query.provider_scope,
           errorRedirectUrl: query.error_redirect_url,
+          afterCallbackRedirectUrl: query.after_callback_redirect_url,
         } satisfies yup.InferType<typeof oauthCookieSchema>,
         expiresAt: new Date(Date.now() + 1000 * 60 * outerOAuthFlowExpirationInMinutes),
       },

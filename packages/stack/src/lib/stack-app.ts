@@ -2,7 +2,6 @@ import { isReactServer } from "@stackframe/stack-sc";
 import { KnownError, KnownErrors, StackAdminInterface, StackClientInterface, StackServerInterface } from "@stackframe/stack-shared";
 import { ProductionModeError, getProductionModeErrors } from "@stackframe/stack-shared/dist/helpers/production-mode";
 import { ApiKeyCreateCrudRequest, ApiKeyCreateCrudResponse } from "@stackframe/stack-shared/dist/interface/adminInterface";
-import { StandardProvider } from "@stackframe/stack-shared/dist/interface/clientInterface";
 import { ApiKeysCrud } from "@stackframe/stack-shared/dist/interface/crud/api-keys";
 import { CurrentUserCrud } from "@stackframe/stack-shared/dist/interface/crud/current-user";
 import { EmailTemplateCrud, EmailTemplateType } from "@stackframe/stack-shared/dist/interface/crud/email-templates";
@@ -17,12 +16,14 @@ import { isBrowserLike } from "@stackframe/stack-shared/dist/utils/env";
 import { StackAssertionError, throwErr } from "@stackframe/stack-shared/dist/utils/errors";
 import { ReadonlyJson } from "@stackframe/stack-shared/dist/utils/json";
 import { DependenciesMap } from "@stackframe/stack-shared/dist/utils/maps";
+import { ProviderType } from "@stackframe/stack-shared/dist/utils/oauth";
 import { deepPlainEquals, filterUndefined, omit } from "@stackframe/stack-shared/dist/utils/objects";
 import { ReactPromise, neverResolve, runAsynchronously, wait } from "@stackframe/stack-shared/dist/utils/promises";
 import { suspend, suspendIfSsr } from "@stackframe/stack-shared/dist/utils/react";
 import { Result } from "@stackframe/stack-shared/dist/utils/results";
 import { Store } from "@stackframe/stack-shared/dist/utils/stores";
 import { mergeScopeStrings } from "@stackframe/stack-shared/dist/utils/strings";
+import { getRelativePart, isRelative } from "@stackframe/stack-shared/dist/utils/urls";
 import { generateUuid } from "@stackframe/stack-shared/dist/utils/uuids";
 import * as cookie from "cookie";
 import * as NextNavigationUnscrambled from "next/navigation"; // import the entire module to get around some static compiler warnings emitted by Next.js in some cases
@@ -56,8 +57,8 @@ export type TokenStoreInit<HasTokenStore extends boolean = boolean> =
 export type HandlerUrls = {
   handler: string,
   signIn: string,
-  afterSignIn: string,
   signUp: string,
+  afterSignIn: string,
   afterSignUp: string,
   signOut: string,
   afterSignOut: string,
@@ -72,7 +73,7 @@ export type HandlerUrls = {
 }
 
 export type OAuthScopesOnSignIn = {
-  [key in StandardProvider]: string[];
+  [key in ProviderType]: string[];
 };
 
 
@@ -81,29 +82,31 @@ type ProjectCurrentServerUser<ProjectId> = ProjectId extends "internal" ? Curren
 
 function getUrls(partial: Partial<HandlerUrls>): HandlerUrls {
   const handler = partial.handler ?? "/handler";
+  const home = partial.home ?? "/";
+  const afterSignIn = partial.afterSignIn ?? home;
   return {
     handler,
     signIn: `${handler}/sign-in`,
-    afterSignIn: "/",
+    afterSignIn: home,
     signUp: `${handler}/sign-up`,
-    afterSignUp: "/",
+    afterSignUp: afterSignIn,
     signOut: `${handler}/sign-out`,
-    afterSignOut: "/",
+    afterSignOut: home,
     emailVerification: `${handler}/email-verification`,
     passwordReset: `${handler}/password-reset`,
     forgotPassword: `${handler}/forgot-password`,
     oauthCallback: `${handler}/oauth-callback`,
     magicLinkCallback: `${handler}/magic-link-callback`,
-    home: "/",
+    home: home,
     accountSettings: `${handler}/account-settings`,
     error: `${handler}/error`,
     ...filterUndefined(partial),
   };
 }
 
-async function _redirectTo(url: string, options?: { replace?: boolean }) {
+async function _redirectTo(url: URL | string, options?: { replace?: boolean }) {
   if (isReactServer) {
-    NextNavigation.redirect(url, options?.replace ? NextNavigation.RedirectType.replace : NextNavigation.RedirectType.push);
+    NextNavigation.redirect(url.toString(), options?.replace ? NextNavigation.RedirectType.replace : NextNavigation.RedirectType.push);
   } else {
     if (options?.replace) {
       window.location.replace(url);
@@ -291,7 +294,10 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
   private readonly _currentUserOAuthConnectionAccessTokensCache = createCacheBySession<[string, string], { accessToken: string } | null>(
     async (session, [accountId, scope]) => {
       try {
-        return await this._interface.getAccessToken(accountId, scope || "", session);
+        const result = await this._interface.createProviderAccessToken(accountId, scope || "", session);
+        return {
+          accessToken: result.access_token,
+        };
       } catch (err) {
         if (!(err instanceof KnownErrors.OAuthConnectionDoesNotHaveRequiredScope || err instanceof KnownErrors.OAuthConnectionNotConnectedToUser)) {
           throw err;
@@ -300,7 +306,7 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
       return null;
     }
   );
-  private readonly _currentUserOAuthConnectionCache = createCacheBySession<[StandardProvider, string, boolean], OAuthConnection | null>(
+  private readonly _currentUserOAuthConnectionCache = createCacheBySession<[ProviderType, string, boolean], OAuthConnection | null>(
     async (session, [connectionId, scope, redirect]) => {
       const user = await this._currentUserCache.getOrWait([session], "write-only");
 
@@ -414,13 +420,13 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     return this._uniqueIdentifier!;
   }
 
-  protected async _checkFeatureSupport(featureName: string, options: any) {
-    return await this._interface.checkFeatureSupport({ ...options, featureName });
+  protected async _checkFeatureSupport(name: string, options: any) {
+    return await this._interface.checkFeatureSupport({ ...options, name });
   }
 
-  protected _useCheckFeatureSupport(featureName: string, options: any): never {
-    runAsynchronously(this._checkFeatureSupport(featureName, options));
-    throw new StackAssertionError(`${featureName} is not currently supported. Please reach out to Stack support for more information.`);
+  protected _useCheckFeatureSupport(name: string, options: any): never {
+    runAsynchronously(this._checkFeatureSupport(name, options));
+    throw new StackAssertionError(`${name} is not currently supported. Please reach out to Stack support for more information.`);
   }
 
   protected _memoryTokenStore = createEmptyTokenStore();
@@ -722,18 +728,18 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     };
   }
 
-  protected _createCurrentUserExtra(crud: CurrentUserCrud['Client']['Read'], session: InternalSession): UserExtra {
+  protected _createUserExtra(crud: CurrentUserCrud['Client']['Read'], session: InternalSession): UserExtra {
     const app = this;
-    async function getConnectedAccount(id: StandardProvider, options?: { scopes?: string[] }): Promise<OAuthConnection | null>;
-    async function getConnectedAccount(id: StandardProvider, options: { or: 'redirect', scopes?: string[] }): Promise<OAuthConnection>;
-    async function getConnectedAccount(id: StandardProvider, options?: { or?: 'redirect', scopes?: string[] }): Promise<OAuthConnection | null> {
+    async function getConnectedAccount(id: ProviderType, options?: { scopes?: string[] }): Promise<OAuthConnection | null>;
+    async function getConnectedAccount(id: ProviderType, options: { or: 'redirect', scopes?: string[] }): Promise<OAuthConnection>;
+    async function getConnectedAccount(id: ProviderType, options?: { or?: 'redirect', scopes?: string[] }): Promise<OAuthConnection | null> {
       const scopeString = options?.scopes?.join(" ");
       return await app._currentUserOAuthConnectionCache.getOrWait([session, id, scopeString || "", options?.or === 'redirect'], "write-only");
     }
 
-    function useConnectedAccount(id: StandardProvider, options?: { scopes?: string[] }): OAuthConnection | null;
-    function useConnectedAccount(id: StandardProvider, options: { or: 'redirect', scopes?: string[] }): OAuthConnection;
-    function useConnectedAccount(id: StandardProvider, options?: { or?: 'redirect', scopes?: string[] }): OAuthConnection | null {
+    function useConnectedAccount(id: ProviderType, options?: { scopes?: string[] }): OAuthConnection | null;
+    function useConnectedAccount(id: ProviderType, options: { or: 'redirect', scopes?: string[] }): OAuthConnection;
+    function useConnectedAccount(id: ProviderType, options?: { or?: 'redirect', scopes?: string[] }): OAuthConnection | null {
       const scopeString = options?.scopes?.join(" ");
       return useAsyncCache(app._currentUserOAuthConnectionCache, [session, id, scopeString || "", options?.or === 'redirect'], "user.useConnectedAccount()");
     }
@@ -798,7 +804,10 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
         return app._updateClientUser(update, session);
       },
       sendVerificationEmail() {
-        return app._sendVerificationEmail(session);
+        if (!crud?.primary_email) {
+          throw new StackAssertionError("User does not have a primary email");
+        }
+        return app._sendVerificationEmail(crud.primary_email, session);
       },
       updatePassword(options: { oldPassword: string, newPassword: string}) {
         return app._updatePassword(options, session);
@@ -826,7 +835,7 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     const currentUser = {
       ...this._createBaseUser(crud),
       ...this._createAuth(session),
-      ...this._createCurrentUserExtra(crud, session),
+      ...this._createUserExtra(crud, session),
       ...this._isInternalProject() ? this._createInternalUserExtra(session) : {},
     } satisfies CurrentUser;
 
@@ -851,33 +860,70 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     return this._interface.projectId as ProjectId;
   }
 
+  protected async _isTrusted(url: string): Promise<boolean> {
+    return isRelative(url);
+  }
+
   get urls(): Readonly<HandlerUrls> {
     return getUrls(this._urlOptions);
   }
 
-  protected async _redirectTo(handlerName: keyof HandlerUrls, options?: RedirectToOptions) {
-    const url = this.urls[handlerName];
+  protected async _redirectIfTrusted(url: string, options?: RedirectToOptions) {
+    if (!await this._isTrusted(url)) {
+      throw new Error(`Redirect URL ${url} is not trusted; should be relative.`);
+    }
+    return await _redirectTo(url, options);
+  }
+
+  protected async _redirectToHandler(handlerName: keyof HandlerUrls, options?: RedirectToOptions) {
+    let url = this.urls[handlerName];
     if (!url) {
       throw new Error(`No URL for handler name ${handlerName}`);
     }
 
-    await _redirectTo(url, options);
+    if (handlerName === "afterSignIn" || handlerName === "afterSignUp") {
+      if (isReactServer || typeof window === "undefined") {
+        try {
+          await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
+        } catch (e) {}
+      } else {
+        const queryParams = new URLSearchParams(window.location.search);
+        url = queryParams.get("after_auth_return_to") || url;
+      }
+    } else if (handlerName === "signIn" || handlerName === "signUp") {
+      if (isReactServer || typeof window === "undefined") {
+        try {
+          await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
+        } catch (e) {}
+      } else {
+        const currentUrl = new URL(window.location.href);
+        const nextUrl = new URL(url, currentUrl);
+        if (currentUrl.searchParams.has("after_auth_return_to")) {
+          nextUrl.searchParams.set("after_auth_return_to", currentUrl.searchParams.get("after_auth_return_to")!);
+        } else if (currentUrl.protocol === nextUrl.protocol && currentUrl.host === nextUrl.host) {
+          nextUrl.searchParams.set("after_auth_return_to", getRelativePart(currentUrl));
+        }
+        url = getRelativePart(nextUrl);
+      }
+    }
+
+    await this._redirectIfTrusted(url, options);
   }
 
-  async redirectToSignIn() { return await this._redirectTo("signIn"); }
-  async redirectToSignUp() { return await this._redirectTo("signUp"); }
-  async redirectToSignOut() { return await this._redirectTo("signOut"); }
-  async redirectToEmailVerification() { return await this._redirectTo("emailVerification"); }
-  async redirectToPasswordReset() { return await this._redirectTo("passwordReset"); }
-  async redirectToForgotPassword() { return await this._redirectTo("forgotPassword"); }
-  async redirectToHome() { return await this._redirectTo("home"); }
-  async redirectToOAuthCallback() { return await this._redirectTo("oauthCallback"); }
-  async redirectToMagicLinkCallback() { return await this._redirectTo("magicLinkCallback"); }
-  async redirectToAfterSignIn() { return await this._redirectTo("afterSignIn"); }
-  async redirectToAfterSignUp() { return await this._redirectTo("afterSignUp"); }
-  async redirectToAfterSignOut() { return await this._redirectTo("afterSignOut"); }
-  async redirectToAccountSettings() { return await this._redirectTo("accountSettings"); }
-  async redirectToError() { return await this._redirectTo("error"); }
+  async redirectToSignIn(options?: RedirectToOptions) { return await this._redirectToHandler("signIn", options); }
+  async redirectToSignUp(options?: RedirectToOptions) { return await this._redirectToHandler("signUp", options); }
+  async redirectToSignOut(options?: RedirectToOptions) { return await this._redirectToHandler("signOut", options); }
+  async redirectToEmailVerification(options?: RedirectToOptions) { return await this._redirectToHandler("emailVerification", options); }
+  async redirectToPasswordReset(options?: RedirectToOptions) { return await this._redirectToHandler("passwordReset", options); }
+  async redirectToForgotPassword(options?: RedirectToOptions) { return await this._redirectToHandler("forgotPassword", options); }
+  async redirectToHome(options?: RedirectToOptions) { return await this._redirectToHandler("home", options); }
+  async redirectToOAuthCallback(options?: RedirectToOptions) { return await this._redirectToHandler("oauthCallback", options); }
+  async redirectToMagicLinkCallback(options?: RedirectToOptions) { return await this._redirectToHandler("magicLinkCallback", options); }
+  async redirectToAfterSignIn(options?: RedirectToOptions) { return await this._redirectToHandler("afterSignIn", options); }
+  async redirectToAfterSignUp(options?: RedirectToOptions) { return await this._redirectToHandler("afterSignUp", options); }
+  async redirectToAfterSignOut(options?: RedirectToOptions) { return await this._redirectToHandler("afterSignOut", options); }
+  async redirectToAccountSettings(options?: RedirectToOptions) { return await this._redirectToHandler("accountSettings", options); }
+  async redirectToError(options?: RedirectToOptions) { return await this._redirectToHandler("error", options); }
 
   async sendForgotPasswordEmail(email: string): Promise<KnownErrors["UserNotFound"] | void> {
     const redirectUrl = constructRedirectUrl(this.urls.passwordReset);
@@ -915,7 +961,7 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     if (crud === null) {
       switch (options?.or) {
         case 'redirect': {
-          await this.redirectToSignIn();
+          await this.redirectToSignIn({ replace: true });
           break;
         }
         case 'throw': {
@@ -943,9 +989,7 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     if (crud === null) {
       switch (options?.or) {
         case 'redirect': {
-          // Updating the router is not allowed during the component render function, so we do it in a different async tick
-          // The error would be: "Cannot update a component (`Router`) while rendering a different component."
-          setTimeout(() => router.replace(this.urls.signIn), 0);
+          runAsynchronously(this.redirectToSignIn({ replace: true }));
           suspend();
           throw new StackAssertionError("suspend should never return");
         }
@@ -970,7 +1014,7 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     return res;
   }
 
-  async signInWithOAuth(provider: StandardProvider) {
+  async signInWithOAuth(provider: ProviderType) {
     this._ensurePersistentTokenStore();
     await signInWithOAuth(
       this._interface, {
@@ -1054,9 +1098,9 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     await this.redirectToAfterSignOut();
   }
 
-  protected async _sendVerificationEmail(session: InternalSession): Promise<KnownErrors["EmailAlreadyVerified"] | void> {
+  protected async _sendVerificationEmail(email: string, session: InternalSession): Promise<KnownErrors["EmailAlreadyVerified"] | void> {
     const emailVerificationRedirectUrl = constructRedirectUrl(this.urls.emailVerification);
-    return await this._interface.sendVerificationEmail(emailVerificationRedirectUrl, session);
+    return await this._interface.sendVerificationEmail(email, emailVerificationRedirectUrl, session);
   }
 
   protected async _updatePassword(
@@ -1215,6 +1259,12 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     return await this._interface.listServerTeamMemberPermissions({ teamId, userId, recursive });
   });
 
+  private async _updateServerUser(userId: string, update: ServerUserUpdateOptions): Promise<UsersCrud['Server']['Read']> {
+    const result = await this._interface.updateServerUser(userId, userUpdateOptionsToCrud(update));
+    await this._refreshUsers();
+    return result;
+  }
+
   constructor(options:
     | StackServerAppConstructorOptions<HasTokenStore, ProjectId>
     | {
@@ -1243,9 +1293,10 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     });
   }
 
-  protected override _createBaseUser(crud: UsersCrud['Server']['Read']): ServerBaseUser;
+  protected override _createBaseUser(crud: UsersCrud['Server']['Read']): ServerBaseUser & BaseUser;
   protected override _createBaseUser(crud: CurrentUserCrud['Client']['Read']): BaseUser;
-  protected override _createBaseUser(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): BaseUser | ServerBaseUser {
+  protected override _createBaseUser(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): ({} | ServerBaseUser) & BaseUser {
+    const app = this;
     if (!crud) {
       throw new StackAssertionError("User not found");
     }
@@ -1255,12 +1306,43 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
         // server user
         serverMetadata: crud.server_metadata,
       } : {},
+      async setServerMetadata(metadata: Record<string, any>) {
+        await app._updateServerUser(crud.id, { serverMetadata: metadata });
+      },
+      async setPrimaryEmail(email: string, options?: { verified?: boolean }) {
+        await app._updateServerUser(crud.id, { primaryEmail: email, primaryEmailVerified: options?.verified });
+      },
+      async grantPermission(scope: Team, permissionId: string): Promise<void> {
+        await app._interface.grantServerTeamUserPermission(scope.id, crud.id, permissionId);
+        for (const recursive of [true, false]) {
+          await app._serverTeamUserPermissionsCache.refresh([scope.id, crud.id, recursive]);
+        }
+      },
+      async revokePermission(scope: Team, permissionId: string): Promise<void> {
+        await app._interface.revokeServerTeamUserPermission(scope.id, crud.id, permissionId);
+        for (const recursive of [true, false]) {
+          await app._serverTeamUserPermissionsCache.refresh([scope.id, crud.id, recursive]);
+        }
+      },
+      async delete() {
+        const res = await app._interface.deleteServerServerUser(crud.id);
+        await app._refreshUsers();
+        return res;
+      },
+      async createSession(options: { expiresInMillis?: number }) {
+        const tokens = await app._interface.createServerUserSession(crud.id, options.expiresInMillis ?? 1000 * 60 * 60 * 24 * 365);
+        return {
+          async getTokens() {
+            return tokens;
+          },
+        };
+      },
     };
   }
 
-  protected override _createCurrentUserExtra(crud: UsersCrud['Server']['Read']): ServerUserExtra;
-  protected override _createCurrentUserExtra(crud: CurrentUserCrud['Client']['Read']): UserExtra;
-  protected override _createCurrentUserExtra(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): ServerUserExtra {
+  protected override _createUserExtra(crud: UsersCrud['Server']['Read']): UserExtra;
+  protected override _createUserExtra(crud: CurrentUserCrud['Client']['Read']): UserExtra;
+  protected override _createUserExtra(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): UserExtra {
     if (!crud) {
       throw new StackAssertionError("User not found");
     }
@@ -1272,15 +1354,11 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
       async setClientMetadata(metadata: Record<string, any>) {
         return await this.update({ clientMetadata: metadata });
       },
-      async setServerMetadata(metadata: Record<string, any>) {
-        return await this.update({ serverMetadata: metadata });
-      },
+
       async setSelectedTeam(team: Team | null) {
         return await this.update({ selectedTeamId: team?.id ?? null });
       },
-      async setPrimaryEmail(email: string, options?: { verified?: boolean }) {
-        return await this.update({ primaryEmail: email, primaryEmailVerified: options?.verified });
-      },
+
       getConnectedAccount: async () => {
         return await app._checkFeatureSupport("getConnectedAccount() on ServerUser", {});
       },
@@ -1327,26 +1405,8 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
       async hasPermission(scope: Team, permissionId: string): Promise<boolean> {
         return await this.getPermission(scope, permissionId) !== null;
       },
-      async grantPermission(scope: Team, permissionId: string): Promise<void> {
-        await app._interface.grantServerTeamUserPermission(scope.id, crud.id, permissionId);
-        for (const recursive of [true, false]) {
-          await app._serverTeamUserPermissionsCache.refresh([scope.id, crud.id, recursive]);
-        }
-      },
-      async revokePermission(scope: Team, permissionId: string): Promise<void> {
-        await app._interface.revokeServerTeamUserPermission(scope.id, crud.id, permissionId);
-        for (const recursive of [true, false]) {
-          await app._serverTeamUserPermissionsCache.refresh([scope.id, crud.id, recursive]);
-        }
-      },
-      async delete() {
-        const res = await app._interface.deleteServerServerUser(crud.id);
-        await app._refreshUsers();
-        return res;
-      },
       async update(update: ServerUserUpdateOptions) {
-        const res = await app._interface.updateServerUser(crud.id, serverUserUpdateOptionsToCrud(update));
-        await app._refreshUsers();
+        await app._updateServerUser(crud.id, update);
       },
       async sendVerificationEmail() {
         return await app._checkFeatureSupport("sendVerificationEmail() on ServerUser", {});
@@ -1359,8 +1419,8 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
 
   protected _serverUserFromCrud(crud: UsersCrud['Server']['Read']): ServerUser {
     return {
+      ...this._createUserExtra(crud),
       ...this._createBaseUser(crud),
-      ...this._createCurrentUserExtra(crud),
     };
   }
 
@@ -1428,7 +1488,7 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     if (crud === null) {
       switch (options?.or) {
         case 'redirect': {
-          await this.redirectToSignIn();
+          await this.redirectToSignIn({ replace: true });
           break;
         }
         case 'throw': {
@@ -1467,9 +1527,7 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     if (crud === null) {
       switch (options?.or) {
         case 'redirect': {
-          // Updating the router is not allowed during the component render function, so we do it in a different async tick
-          // The error would be: "Cannot update a component (`Router`) while rendering a different component."
-          setTimeout(() => router.replace(this.urls.signIn), 0);
+          runAsynchronously(this.redirectToSignIn({ replace: true }));
           suspend();
           throw new StackAssertionError("suspend should never return");
         }
@@ -1907,80 +1965,89 @@ type Auth = {
   getAuthJson(): Promise<{ accessToken: string | null, refreshToken: string | null }>,
 };
 
-export type User =
-  & {
-    readonly id: string,
+/**
+ * ```
+ * +----------+-------------+-------------------+
+ * |    \     |   !Server   |      Server       |
+ * +----------+-------------+-------------------+
+ * | !Session | User        | ServerUser        |
+ * | Session  | CurrentUser | CurrentServerUser |
+ * +----------+-------------+-------------------+
+ * ```
+ *
+ * The fields on each of these types are available iff:
+ * BaseUser: true
+ * Auth: Session
+ * ServerBaseUser: Server
+ * UserExtra: Session OR Server
+ *
+ * The types are defined as follows (in the typescript manner):
+ * User = BaseUser
+ * CurrentUser = BaseUser & Auth & UserExtra
+ * ServerUser = BaseUser & ServerBaseUser & UserExtra
+ * CurrentServerUser = BaseUser & ServerBaseUser & Auth & UserExtra
+ **/
 
-    readonly displayName: string | null,
-    setDisplayName(displayName: string): Promise<void>,
+type BaseUser = {
+  readonly id: string,
 
-    /**
-     * The user's email address.
-     *
-     * Note: This might NOT be unique across multiple users, so always use `id` for unique identification.
-     */
-    readonly primaryEmail: string | null,
-    readonly primaryEmailVerified: boolean,
-    sendVerificationEmail(): Promise<KnownErrors["EmailAlreadyVerified"] | void>,
+  readonly displayName: string | null,
 
-    readonly profileImageUrl: string | null,
+  /**
+   * The user's email address.
+   *
+   * Note: This might NOT be unique across multiple users, so always use `id` for unique identification.
+   */
+  readonly primaryEmail: string | null,
+  readonly primaryEmailVerified: boolean,
 
-    readonly signedUpAt: Date,
+  readonly profileImageUrl: string | null,
 
-    readonly clientMetadata: any,
-    setClientMetadata(metadata: any): Promise<void>,
+  readonly signedUpAt: Date,
 
-    /**
-     * Whether the primary e-mail can be used for authentication.
-     */
-    readonly emailAuthEnabled: boolean,
-    /**
-     * Whether the user has a password set.
-     */
-    readonly hasPassword: boolean,
-    readonly oauthProviders: readonly { id: string }[],
-    updatePassword(options: { oldPassword: string, newPassword: string}): Promise<KnownErrors["PasswordConfirmationMismatch"] | KnownErrors["PasswordRequirementsNotMet"] | void>,
+  readonly clientMetadata: any,
 
-    /**
-     * A shorthand method to update multiple fields of the user at once.
-     */
-    update(update: UserUpdateOptions): Promise<void>,
+  /**
+   * Whether the primary e-mail can be used for authentication.
+   */
+  readonly emailAuthEnabled: boolean,
+  /**
+   * Whether the user has a password set.
+   */
+  readonly hasPassword: boolean,
+  readonly oauthProviders: readonly { id: string }[],
 
-    hasPermission(scope: Team, permissionId: string): Promise<boolean>,
+  /**
+   * A shorthand method to update multiple fields of the user at once.
+   */
+  readonly selectedTeam: Team | null,
+  toClientJson(): CurrentUserCrud["Client"]["Read"],
+}
 
-    readonly selectedTeam: Team | null,
-    setSelectedTeam(team: Team | null): Promise<void>,
+type UserExtra = {
+  setDisplayName(displayName: string): Promise<void>,
+  sendVerificationEmail(): Promise<KnownErrors["EmailAlreadyVerified"] | void>,
+  setClientMetadata(metadata: any): Promise<void>,
+  updatePassword(options: { oldPassword: string, newPassword: string}): Promise<KnownErrors["PasswordConfirmationMismatch"] | KnownErrors["PasswordRequirementsNotMet"] | void>,
 
-    createTeam(data: TeamCreateOptions): Promise<Team>,
+  /**
+   * A shorthand method to update multiple fields of the user at once.
+   */
+  update(update: UserUpdateOptions): Promise<void>,
 
-    getConnectedAccount(id: StandardProvider, options: { or: 'redirect', scopes?: string[] }): Promise<OAuthConnection>,
-    getConnectedAccount(id: StandardProvider, options?: { or?: 'redirect' | 'throw' | 'return-null', scopes?: string[] }): Promise<OAuthConnection | null>,
-    useConnectedAccount(id: StandardProvider, options: { or: 'redirect', scopes?: string[] }): OAuthConnection,
-    useConnectedAccount(id: StandardProvider, options?: { or?: 'redirect' | 'throw' | 'return-null', scopes?: string[] }): OAuthConnection | null,
+  getConnectedAccount(id: ProviderType, options: { or: 'redirect', scopes?: string[] }): Promise<OAuthConnection>,
+  getConnectedAccount(id: ProviderType, options?: { or?: 'redirect' | 'throw' | 'return-null', scopes?: string[] }): Promise<OAuthConnection | null>,
+  useConnectedAccount(id: ProviderType, options: { or: 'redirect', scopes?: string[] }): OAuthConnection,
+  useConnectedAccount(id: ProviderType, options?: { or?: 'redirect' | 'throw' | 'return-null', scopes?: string[] }): OAuthConnection | null,
 
-    toClientJson(): CurrentUserCrud["Client"]["Read"],
-  }
-  & AsyncStoreProperty<"team", [id: string], Team | null, false>
-  & AsyncStoreProperty<"teams", [], Team[], true>
-  & AsyncStoreProperty<"permission", [scope: Team, permissionId: string, options?: { recursive?: boolean }], TeamPermission | null, false>
-  & AsyncStoreProperty<"permissions", [scope: Team, options?: { recursive?: boolean }], TeamPermission[], true>;
-
-type BaseUser = Pick<User,
-  | "id"
-  | "displayName"
-  | "primaryEmail"
-  | "primaryEmailVerified"
-  | "profileImageUrl"
-  | "signedUpAt"
-  | "clientMetadata"
-  | "hasPassword"
-  | "emailAuthEnabled"
-  | "oauthProviders"
-  | "selectedTeam"
-  | "toClientJson"
->;
-
-type UserExtra = Omit<User, keyof BaseUser>;
+  hasPermission(scope: Team, permissionId: string): Promise<boolean>,
+  setSelectedTeam(team: Team | null): Promise<void>,
+  createTeam(data: TeamCreateOptions): Promise<Team>,
+}
+& AsyncStoreProperty<"team", [id: string], Team | null, false>
+& AsyncStoreProperty<"teams", [], Team[], true>
+& AsyncStoreProperty<"permission", [scope: Team, permissionId: string, options?: { recursive?: boolean }], TeamPermission | null, false>
+& AsyncStoreProperty<"permissions", [scope: Team, options?: { recursive?: boolean }], TeamPermission[], true>;
 
 type InternalUserExtra =
   & {
@@ -1988,7 +2055,9 @@ type InternalUserExtra =
   }
   & AsyncStoreProperty<"ownedProjects", [], AdminOwnedProject[], true>
 
-export type CurrentUser = Auth & User;
+export type User = BaseUser;
+
+export type CurrentUser = BaseUser & Auth & UserExtra;
 
 export type CurrentInternalUser = CurrentUser & InternalUserExtra;
 
@@ -2008,43 +2077,41 @@ function userUpdateOptionsToCrud(options: UserUpdateOptions): CurrentUserCrud["C
 
 type ___________server_user = never;  // this is a marker for VSCode's outline view
 
+type ServerBaseUser = {
+  setPrimaryEmail(email: string, options?: { verified?: boolean | undefined }): Promise<void>,
+
+  readonly serverMetadata: any,
+  setServerMetadata(metadata: any): Promise<void>,
+
+  updatePassword(options: { oldPassword?: string, newPassword: string}): Promise<KnownErrors["PasswordConfirmationMismatch"] | KnownErrors["PasswordRequirementsNotMet"] | void>,
+
+  update(user: ServerUserUpdateOptions): Promise<void>,
+  delete(): Promise<void>,
+
+  grantPermission(scope: Team, permissionId: string): Promise<void>,
+  revokePermission(scope: Team, permissionId: string): Promise<void>,
+
+  hasPermission(scope: Team, permissionId: string): Promise<boolean>,
+
+  /**
+   * Creates a new session object with a refresh token for this user. Can be used to impersonate them.
+   */
+  createSession(options?: { expiresInMillis?: number }): Promise<Session>,
+}
+& AsyncStoreProperty<"team", [id: string], ServerTeam | null, false>
+& AsyncStoreProperty<"teams", [], ServerTeam[], true>
+& AsyncStoreProperty<"permission", [scope: Team, permissionId: string, options?: { direct?: boolean }], AdminTeamPermission | null, false>
+& AsyncStoreProperty<"permissions", [scope: Team, options?: { direct?: boolean }], AdminTeamPermission[], true>;
+
 /**
  * A user including sensitive fields that should only be used on the server, never sent to the client
  * (such as sensitive information and serverMetadata).
  */
-export type ServerUser =
-  & {
-    setPrimaryEmail(email: string, options?: { verified?: boolean | undefined }): Promise<void>,
-
-    readonly serverMetadata: any,
-    setServerMetadata(metadata: any): Promise<void>,
-
-    updatePassword(options: { oldPassword?: string, newPassword: string}): Promise<KnownErrors["PasswordConfirmationMismatch"] | KnownErrors["PasswordRequirementsNotMet"] | void>,
-
-    update(user: ServerUserUpdateOptions): Promise<void>,
-    delete(): Promise<void>,
-
-    grantPermission(scope: Team, permissionId: string): Promise<void>,
-    revokePermission(scope: Team, permissionId: string): Promise<void>,
-
-    hasPermission(scope: Team, permissionId: string): Promise<boolean>,
-  }
-  & AsyncStoreProperty<"team", [id: string], ServerTeam | null, false>
-  & AsyncStoreProperty<"teams", [], ServerTeam[], true>
-  & AsyncStoreProperty<"permission", [scope: Team, permissionId: string, options?: { direct?: boolean }], AdminTeamPermission | null, false>
-  & AsyncStoreProperty<"permissions", [scope: Team, options?: { direct?: boolean }], AdminTeamPermission[], true>
-  & User;
-
-type ServerBaseUser = Pick<ServerUser,
-  | keyof BaseUser
-  | "serverMetadata"
->;
+export type ServerUser = ServerBaseUser & BaseUser & UserExtra;
 
 export type CurrentServerUser = Auth & ServerUser;
 
 export type CurrentInternalServerUser = CurrentServerUser & InternalUserExtra;
-
-type ServerUserExtra = Omit<ServerUser, keyof ServerBaseUser>;
 
 type ServerUserUpdateOptions = {
   primaryEmail?: string,

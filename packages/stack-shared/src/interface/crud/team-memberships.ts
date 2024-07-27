@@ -1,18 +1,16 @@
 import { CrudTypeOf, createCrud } from "../../crud";
 import { yupMixed, yupObject } from "../../schema-fields";
 
-export const teamMembershipsCrudServerReadSchema = yupObject({
-}).required();
-
-export const teamMembershipsCrudServerCreateSchema = yupObject({
-}).required();
-
-export const teamMembershipsCrudServerDeleteSchema = yupMixed();
+export const teamMembershipsCrudClientReadSchema = yupObject({}).required();
+export const teamMembershipsCrudServerCreateSchema = yupObject({}).required();
+export const teamMembershipsCrudClientDeleteSchema = yupMixed();
 
 export const teamMembershipsCrud = createCrud({
-  serverReadSchema: teamMembershipsCrudServerReadSchema,
+  // Client
+  clientReadSchema: teamMembershipsCrudClientReadSchema,
+  clientDeleteSchema: teamMembershipsCrudClientDeleteSchema,
+  // Server
   serverCreateSchema: teamMembershipsCrudServerCreateSchema,
-  serverDeleteSchema: teamMembershipsCrudServerDeleteSchema,
   docs: {
     serverCreate: {
       summary: "Add a user to a team",

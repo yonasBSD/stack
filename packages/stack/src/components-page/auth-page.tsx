@@ -1,15 +1,17 @@
 'use client';
 
-import { CredentialSignInForm } from '../components/credential-sign-in-form';
+import { CredentialSignIn } from '../components/credential-sign-in';
 import { SeparatorWithText } from '../components/elements/separator-with-text';
 import { OAuthButtonGroup } from '../components/oauth-button-group';
 import { MaybeFullPage } from '../components/elements/maybe-full-page';
 import { useUser, useStackApp } from '..';
 import { PredefinedMessageCard } from '../components/message-cards/predefined-message-card';
-import { MagicLinkSignInForm } from '../components/magic-link-sign-in-form';
-import { CredentialSignUpForm } from '../components/credential-sign-up-form';
+import { MagicLinkSignIn } from '../components/magic-link-sign-in';
+import { CredentialSignUp } from '../components/credential-sign-up';
 import { StyledLink, Tabs, TabsContent, TabsList, TabsTrigger, Typography } from '@stackframe/stack-ui';
 import { Project } from '../lib/stack-app';
+import { runAsynchronously } from '@stackframe/stack-shared/dist/utils/promises';
+import { useEffect } from 'react';
 
 export function AuthPage({
   fullPage=false,
@@ -33,6 +35,12 @@ export function AuthPage({
   const projectFromHook = stackApp.useProject();
   const project = mockProject || projectFromHook;
 
+  useEffect(() => {
+    if (user && !mockProject) {
+      runAsynchronously(type === 'sign-in' ? stackApp.redirectToAfterSignIn() : stackApp.redirectToAfterSignUp());
+    }
+  }, [user, mockProject, stackApp]);
+
   if (user && !mockProject) {
     return <PredefinedMessageCard type='signedIn' fullPage={fullPage} />;
   }
@@ -49,14 +57,20 @@ export function AuthPage({
           {type === 'sign-in' ? (
             <Typography>
               {"Don't have an account? "}
-              <StyledLink href={stackApp.urls.signUp}>
+              <StyledLink href={stackApp.urls.signUp} onClick={(e) => {
+                runAsynchronously(stackApp.redirectToSignUp());
+                e.preventDefault();
+              }}>
                 Sign up
               </StyledLink>
             </Typography>
           ) : (
             <Typography>
               {"Already have an account? "}
-              <StyledLink href={stackApp.urls.signIn}>
+              <StyledLink href={stackApp.urls.signIn} onClick={(e) => {
+                runAsynchronously(stackApp.redirectToSignUp());
+                e.preventDefault();
+              }}>
                 Sign in
               </StyledLink>
             </Typography>
@@ -71,16 +85,16 @@ export function AuthPage({
               <TabsTrigger value='password' className='flex-1'>Password</TabsTrigger>
             </TabsList>
             <TabsContent value='magic-link'>
-              <MagicLinkSignInForm/>
+              <MagicLinkSignIn/>
             </TabsContent>
             <TabsContent value='password'>
-              {type === 'sign-up' ? <CredentialSignUpForm/> : <CredentialSignInForm/>}
+              {type === 'sign-up' ? <CredentialSignUp/> : <CredentialSignIn/>}
             </TabsContent>
           </Tabs>
         ) : project.config.credentialEnabled ? (
-          type === 'sign-up' ? <CredentialSignUpForm/> : <CredentialSignInForm/>
+          type === 'sign-up' ? <CredentialSignUp/> : <CredentialSignIn/>
         ) : project.config.magicLinkEnabled ? (
-          <MagicLinkSignInForm/>
+          <MagicLinkSignIn/>
         ) : null}
       </div>
     </MaybeFullPage>

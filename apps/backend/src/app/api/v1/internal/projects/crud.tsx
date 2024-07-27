@@ -1,14 +1,16 @@
 import { fullProjectInclude, listManagedProjectIds, projectPrismaToCrud } from "@/lib/projects";
+import { ensureSharedProvider, ensureStandardProvider } from "@/lib/request-checks";
 import { prismaClient } from "@/prisma-client";
 import { createCrudHandlers } from "@/route-handlers/crud-handler";
 import { KnownErrors } from "@stackframe/stack-shared";
 import { internalProjectsCrud } from "@stackframe/stack-shared/dist/interface/crud/projects";
-import { projectIdSchema, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
+import { projectIdSchema, yupObject } from "@stackframe/stack-shared/dist/schema-fields";
 import { StackAssertionError, throwErr } from "@stackframe/stack-shared/dist/utils/errors";
+import { createLazyProxy } from "@stackframe/stack-shared/dist/utils/proxies";
 import { typedToUppercase } from "@stackframe/stack-shared/dist/utils/strings";
 import { generateUuid } from "@stackframe/stack-shared/dist/utils/uuids";
 
-export const internalProjectsCrudHandlers = createCrudHandlers(internalProjectsCrud, {
+export const internalProjectsCrudHandlers = createLazyProxy(() => createCrudHandlers(internalProjectsCrud, {
   paramsSchema: yupObject({
     projectId: projectIdSchema.required(),
   }),
@@ -48,12 +50,12 @@ export const internalProjectsCrudHandlers = createCrudHandlers(internalProjectsC
                   enabled: item.enabled,
                   proxiedOAuthConfig: item.type === "shared" ? {
                     create: {
-                      type: typedToUppercase(item.id),
+                      type: typedToUppercase(ensureSharedProvider(item.id)),
                     }
                   } : undefined,
                   standardOAuthConfig: item.type === "standard" ? {
                     create: {
-                      type: typedToUppercase(item.id),
+                      type: typedToUppercase(ensureStandardProvider(item.id)),
                       clientId: item.client_id ?? throwErr('client_id is required'),
                       clientSecret: item.client_secret ?? throwErr('client_secret is required'),
                     }
@@ -177,4 +179,4 @@ export const internalProjectsCrudHandlers = createCrudHandlers(internalProjectsC
       is_paginated: false,
     } as const;
   }
-});
+}));

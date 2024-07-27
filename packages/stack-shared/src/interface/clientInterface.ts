@@ -9,6 +9,7 @@ import { globalVar } from '../utils/globals';
 import { ReadonlyJson } from '../utils/json';
 import { Result } from "../utils/results";
 import { CurrentUserCrud } from './crud/current-user';
+import { ProviderAccessTokenCrud } from './crud/oauth';
 import { InternalProjectsCrud, ProjectsCrud } from './crud/projects';
 import { TeamPermissionsCrud } from './crud/team-permissions';
 import { TeamsCrud } from './crud/teams';
@@ -22,33 +23,6 @@ export type ClientInterfaceOptions = {
 } | {
   projectOwnerSession: InternalSession,
 });
-
-export type SharedProvider = "shared-github" | "shared-google" | "shared-facebook" | "shared-microsoft" | "shared-spotify";
-export const sharedProviders = [
-  "shared-github",
-  "shared-google",
-  "shared-facebook",
-  "shared-microsoft",
-  "shared-spotify",
-] as const;
-
-export type StandardProvider = "github" | "facebook" | "google" | "microsoft" | "spotify";
-export const standardProviders = [
-  "github",
-  "facebook",
-  "google",
-  "microsoft",
-  "spotify",
-] as const;
-
-export function toStandardProvider(provider: SharedProvider | StandardProvider): StandardProvider {
-  return provider.replace("shared-", "") as StandardProvider;
-}
-
-export function toSharedProvider(provider: SharedProvider | StandardProvider): SharedProvider {
-  return "shared-" + provider as SharedProvider;
-}
-
 
 export class StackClientInterface {
   constructor(public readonly options: ClientInterfaceOptions) {
@@ -355,7 +329,8 @@ export class StackClientInterface {
   }
 
   async sendVerificationEmail(
-    emailVerificationRedirectUrl: string,
+    email: string,
+    callbackUrl: string,
     session: InternalSession
   ): Promise<KnownErrors["EmailAlreadyVerified"] | undefined> {
     const res = await this.sendClientRequestAndCatchKnownError(
@@ -366,7 +341,8 @@ export class StackClientInterface {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          emailVerificationRedirectUrl,
+          email,
+          callback_url: callbackUrl,
         }),
       },
       session,
@@ -610,7 +586,7 @@ export class StackClientInterface {
     url.searchParams.set("error_redirect_url", options.errorRedirectUrl);
 
     if (options.afterCallbackRedirectUrl) {
-      url.searchParams.set("after_callback_redirect_rrl", options.afterCallbackRedirectUrl);
+      url.searchParams.set("after_callback_redirect_url", options.afterCallbackRedirectUrl);
     }
 
     if (options.type === "link") {
@@ -802,13 +778,13 @@ export class StackClientInterface {
     return json;
   }
 
-  async getAccessToken(
+  async createProviderAccessToken(
     provider: string,
     scope: string,
     session: InternalSession,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<ProviderAccessTokenCrud['Client']['Read']> {
     const response = await this.sendClientRequest(
-      `/auth/oauth/connected-account/${provider}/access-token`,
+      `/auth/oauth/connected-accounts/${provider}/access-token`,
       {
         method: "POST",
         headers: {
@@ -818,10 +794,7 @@ export class StackClientInterface {
       },
       session,
     );
-    const json = await response.json();
-    return {
-      accessToken: json.accessToken,
-    };
+    return await response.json();
   }
 
   async createTeamForCurrentUser(

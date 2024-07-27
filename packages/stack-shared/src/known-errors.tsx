@@ -285,7 +285,11 @@ const AccessTypeWithoutProjectId = createKnownErrorConstructor(
   "ACCESS_TYPE_WITHOUT_PROJECT_ID",
   (accessType: "client" | "server" | "admin") => [
     400,
-    `The x-stack-access-type header was '${accessType}', but the x-stack-project-id header was not provided.`,
+    deindent`
+      The x-stack-access-type header was '${accessType}', but the x-stack-project-id header was not provided.
+      
+      For more information, see the docs on REST API authentication: https://docs.stack-auth.com/rest-api/auth#authentication
+    `,
     {
       request_type: accessType,
     },
@@ -298,7 +302,11 @@ const AccessTypeRequired = createKnownErrorConstructor(
   "ACCESS_TYPE_REQUIRED",
   () => [
     400,
-    `You must specify an access level for this Stack project. Make sure project API keys are provided (eg. x-stack-publishable-client-key) and you set the x-stack-access-type header to 'client', 'server', or 'admin'.`,
+    deindent`
+      You must specify an access level for this Stack project. Make sure project API keys are provided (eg. x-stack-publishable-client-key) and you set the x-stack-access-type header to 'client', 'server', or 'admin'.
+      
+      For more information, see the docs on REST API authentication: https://docs.stack-auth.com/rest-api/auth#authentication
+    `,
   ] as const,
   () => [] as const,
 );
@@ -602,6 +610,19 @@ const CannotGetOwnUserWithoutUser = createKnownErrorConstructor(
     "You have specified 'me' as a userId, but did not provide authentication for a user.",
   ] as const,
   () => [] as const,
+);
+
+const UserIdDoesNotExist = createKnownErrorConstructor(
+  KnownError,
+  "USER_ID_DOES_NOT_EXIST",
+  (userId: string) => [
+    400,
+    `The given user with the ID ${userId} does not exist.`,
+    {
+      user_id: userId,
+    },
+  ] as const,
+  (json: any) => [json.user_id] as const,
 );
 
 const UserNotFound = createKnownErrorConstructor(
@@ -998,6 +1019,47 @@ const TeamMembershipAlreadyExists = createKnownErrorConstructor(
   () => [] as const,
 );
 
+const TeamPermissionRequired = createKnownErrorConstructor(
+  KnownError,
+  "TEAM_PERMISSION_REQUIRED",
+  (teamId, userId, permissionId) => [
+    401,
+    `User ${userId} does not have permission ${permissionId} in team ${teamId}.`,
+    {
+      team_id: teamId,
+      user_id: userId,
+      permission_id: permissionId,
+    },
+  ] as const,
+  (json) => [json.team_id, json.user_id, json.permission_id] as const,
+);
+
+const InvalidSharedOAuthProviderId = createKnownErrorConstructor(
+  KnownError,
+  "INVALID_SHARED_OAUTH_PROVIDER_ID",
+  (providerId) => [
+    400,
+    `The shared OAuth provider with ID ${providerId} is not valid.`,
+    {
+      provider_id: providerId,
+    },
+  ] as const,
+  (json) => [json.provider_id] as const,
+);
+
+const InvalidStandardOAuthProviderId = createKnownErrorConstructor(
+  KnownError,
+  "INVALID_STANDARD_OAUTH_PROVIDER_ID",
+  (providerId) => [
+    400,
+    `The standard OAuth provider with ID ${providerId} is not valid.`,
+    {
+      provider_id: providerId,
+    },
+  ] as const,
+  (json) => [json.provider_id] as const,
+);
+
 export type KnownErrors = {
   [K in keyof typeof KnownErrors]: InstanceType<typeof KnownErrors[K]>;
 };
@@ -1044,6 +1106,7 @@ export const KnownErrors = {
   ProviderRejected,
   RefreshTokenNotFoundOrExpired,
   UserEmailAlreadyExists,
+  UserIdDoesNotExist,
   UserNotFound,
   ApiKeyNotFound,
   ProjectNotFound,
@@ -1079,6 +1142,9 @@ export const KnownErrors = {
   OAuthProviderNotFoundOrNotEnabled,
   UserAuthenticationRequired,
   TeamMembershipAlreadyExists,
+  TeamPermissionRequired,
+  InvalidSharedOAuthProviderId,
+  InvalidStandardOAuthProviderId,
 } satisfies Record<string, KnownErrorConstructor<any, any>>;
 
 

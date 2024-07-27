@@ -1,11 +1,14 @@
 'use client';
+import { useAdminApp } from '@/app/(main)/(protected)/projects/[projectId]/use-admin-app';
 import { ServerUser } from '@stackframe/stack';
-import { standardProviders } from "@stackframe/stack-shared/dist/interface/clientInterface";
-import { jsonStringSchema } from "@stackframe/stack-shared/dist/schema-fields";
+import { jsonStringOrEmptySchema } from "@stackframe/stack-shared/dist/schema-fields";
+import { allProviders } from '@stackframe/stack-shared/dist/utils/oauth';
+import { deindent } from '@stackframe/stack-shared/dist/utils/strings';
 import { ColumnDef, Row, Table } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import * as yup from "yup";
 import { ActionDialog } from "../action-dialog";
+import { CopyField } from '../copy-field';
 import { FormDialog } from "../form-dialog";
 import { DateField, InputField, SwitchField, TextAreaField } from "../form-fields";
 import { SimpleTooltip } from "../simple-tooltip";
@@ -29,7 +32,7 @@ function userToolbarRender<TData>(table: Table<TData>) {
       <DataTableFacetedFilter
         column={table.getColumn("authTypes")}
         title="Auth Method"
-        options={['email', 'password', ...standardProviders].map((provider) => ({
+        options={['email', 'password', ...allProviders].map((provider) => ({
           value: provider,
           label: provider,
         }))}
@@ -51,8 +54,8 @@ const userEditFormSchema = yup.object({
   primaryEmail: yup.string().email("Primary Email must be a valid email address"),
   signedUpAt: yup.date().required(),
   primaryEmailVerified: yup.boolean().required(),
-  clientMetadata: jsonStringSchema,
-  serverMetadata: jsonStringSchema,
+  clientMetadata: jsonStringOrEmptySchema.default("null"),
+  serverMetadata: jsonStringOrEmptySchema.default("null"),
 });
 
 function EditUserDialog(props: {
@@ -65,8 +68,8 @@ function EditUserDialog(props: {
     primaryEmail: props.user.primaryEmail || undefined,
     primaryEmailVerified: props.user.primaryEmailVerified,
     signedUpAt: props.user.signedUpAt,
-    clientMetadata: props.user.clientMetadata ? JSON.stringify(props.user.clientMetadata) : undefined,
-    serverMetadata: props.user.serverMetadata ? JSON.stringify(props.user.serverMetadata) : undefined,
+    clientMetadata: props.user.clientMetadata == null ? "" : JSON.stringify(props.user.clientMetadata, null, 2),
+    serverMetadata: props.user.serverMetadata == null ? "" : JSON.stringify(props.user.serverMetadata, null, 2),
   };
 
   return <FormDialog
@@ -92,8 +95,8 @@ function EditUserDialog(props: {
 
         <DateField control={form.control} label="Signed Up At" name="signedUpAt" />
 
-        <TextAreaField rows={3} control={form.control} label="Client Metadata" name="clientMetadata" />
-        <TextAreaField rows={3} control={form.control} label="Server Metadata" name="serverMetadata" />
+        <TextAreaField rows={3} control={form.control} label="Client Metadata" name="clientMetadata" placeholder="null" monospace />
+        <TextAreaField rows={3} control={form.control} label="Server Metadata" name="serverMetadata" placeholder="null" monospace />
       </>
     )}
     onSubmit={async (values) => { await props.user.update({
@@ -123,22 +126,65 @@ function DeleteUserDialog(props: {
   </ActionDialog>;
 }
 
+function ImpersonateUserDialog(props: {
+  user: ServerUser,
+  impersonateSnippet: string | null,
+  onClose: () => void,
+}) {
+  return <ActionDialog
+    open={props.impersonateSnippet !== null}
+    onOpenChange={(open) => !open && props.onClose()}
+    title="Impersonate User"
+    okButton
+  >
+    <Typography>
+      Open your website and paste the following code into the browser console:
+    </Typography>
+    <CopyField
+      monospace
+      height={60}
+      value={props.impersonateSnippet ?? ""}
+    />
+  </ActionDialog>;
+}
+
 function UserActions({ row }: { row: Row<ExtendedServerUser> }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [impersonateSnippet, setImpersonateSnippet] = useState<string | null>(null);
+  const app = useAdminApp();
+
   return (
     <>
       <EditUserDialog user={row.original} open={isEditModalOpen} onOpenChange={setIsEditModalOpen} />
       <DeleteUserDialog user={row.original} open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen} />
+      <ImpersonateUserDialog user={row.original} impersonateSnippet={impersonateSnippet} onClose={() => setImpersonateSnippet(null)} />
       <ActionCell
-        items={[{
-          item: "Edit",
-          onClick: () => setIsEditModalOpen(true),
-        }]}
-        dangerItems={[{
-          item: "Delete",
-          onClick: () => setIsDeleteModalOpen(true),
-        }]}
+        items={[
+          {
+            item: "Impersonate",
+            onClick: async () => {
+              const expiresInMillis = 1000 * 60 * 60 * 2;
+              const expiresAtDate = new Date(Date.now() + expiresInMillis);
+              const session = await row.original.createSession({ expiresInMillis });
+              const tokens = await session.getTokens();
+              setImpersonateSnippet(deindent`
+                document.cookie = 'stack-refresh-${app.projectId}=${tokens.refreshToken}; expires=${expiresAtDate.toUTCString()}; path=/'; 
+                window.location.reload();
+              `);
+            }
+          },
+          '-',
+          {
+            item: "Edit",
+            onClick: () => setIsEditModalOpen(true),
+          },
+          {
+            item: "Delete",
+            onClick: () => setIsDeleteModalOpen(true),
+            danger: true,
+          },
+        ]}
       />
     </>
   );
