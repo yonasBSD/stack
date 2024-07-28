@@ -531,6 +531,10 @@ model StandardOAuthProviderConfig {
   clientId     String
   clientSecret String
 
+  // optional extra parameters for specific oauth providers
+  // Facebook business integration requires a config_id
+  facebookConfigId String?
+
   @@id([projectConfigId, id])
 }
 
