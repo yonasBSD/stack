@@ -881,29 +881,31 @@ class _StackClientAppImpl<HasTokenStore extends boolean, ProjectId extends strin
       throw new Error(`No URL for handler name ${handlerName}`);
     }
 
-    if (handlerName === "afterSignIn" || handlerName === "afterSignUp") {
-      if (isReactServer || typeof window === "undefined") {
-        try {
-          await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
-        } catch (e) {}
-      } else {
-        const queryParams = new URLSearchParams(window.location.search);
-        url = queryParams.get("after_auth_return_to") || url;
-      }
-    } else if (handlerName === "signIn" || handlerName === "signUp") {
-      if (isReactServer || typeof window === "undefined") {
-        try {
-          await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
-        } catch (e) {}
-      } else {
-        const currentUrl = new URL(window.location.href);
-        const nextUrl = new URL(url, currentUrl);
-        if (currentUrl.searchParams.has("after_auth_return_to")) {
-          nextUrl.searchParams.set("after_auth_return_to", currentUrl.searchParams.get("after_auth_return_to")!);
-        } else if (currentUrl.protocol === nextUrl.protocol && currentUrl.host === nextUrl.host) {
-          nextUrl.searchParams.set("after_auth_return_to", getRelativePart(currentUrl));
+    if (!options?.noRedirectBack) {
+      if (handlerName === "afterSignIn" || handlerName === "afterSignUp") {
+        if (isReactServer || typeof window === "undefined") {
+          try {
+            await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
+          } catch (e) {}
+        } else {
+          const queryParams = new URLSearchParams(window.location.search);
+          url = queryParams.get("after_auth_return_to") || url;
         }
-        url = getRelativePart(nextUrl);
+      } else if (handlerName === "signIn" || handlerName === "signUp") {
+        if (isReactServer || typeof window === "undefined") {
+          try {
+            await this._checkFeatureSupport("rsc-handler-" + handlerName, {});
+          } catch (e) {}
+        } else {
+          const currentUrl = new URL(window.location.href);
+          const nextUrl = new URL(url, currentUrl);
+          if (currentUrl.searchParams.has("after_auth_return_to")) {
+            nextUrl.searchParams.set("after_auth_return_to", currentUrl.searchParams.get("after_auth_return_to")!);
+          } else if (currentUrl.protocol === nextUrl.protocol && currentUrl.host === nextUrl.host) {
+            nextUrl.searchParams.set("after_auth_return_to", getRelativePart(currentUrl));
+          }
+          url = getRelativePart(nextUrl);
+        }
       }
     }
 
@@ -1260,7 +1262,7 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
   });
 
   private async _updateServerUser(userId: string, update: ServerUserUpdateOptions): Promise<UsersCrud['Server']['Read']> {
-    const result = await this._interface.updateServerUser(userId, userUpdateOptionsToCrud(update));
+    const result = await this._interface.updateServerUser(userId, serverUserUpdateOptionsToCrud(update));
     await this._refreshUsers();
     return result;
   }
@@ -1293,22 +1295,11 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
     });
   }
 
-  protected override _createBaseUser(crud: UsersCrud['Server']['Read']): ServerBaseUser & BaseUser;
-  protected override _createBaseUser(crud: CurrentUserCrud['Client']['Read']): BaseUser;
-  protected override _createBaseUser(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): ({} | ServerBaseUser) & BaseUser {
+  protected _serverUserFromCrud(crud: UsersCrud['Server']['Read']): ServerUser {
     const app = this;
-    if (!crud) {
-      throw new StackAssertionError("User not found");
-    }
     return {
       ...super._createBaseUser(crud),
-      ..."server_metadata" in crud ? {
-        // server user
-        serverMetadata: crud.server_metadata,
-      } : {},
-      async setServerMetadata(metadata: Record<string, any>) {
-        await app._updateServerUser(crud.id, { serverMetadata: metadata });
-      },
+      serverMetadata: crud.server_metadata,
       async setPrimaryEmail(email: string, options?: { verified?: boolean }) {
         await app._updateServerUser(crud.id, { primaryEmail: email, primaryEmailVerified: options?.verified });
       },
@@ -1337,28 +1328,18 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
           },
         };
       },
-    };
-  }
-
-  protected override _createUserExtra(crud: UsersCrud['Server']['Read']): UserExtra;
-  protected override _createUserExtra(crud: CurrentUserCrud['Client']['Read']): UserExtra;
-  protected override _createUserExtra(crud: CurrentUserCrud['Client']['Read'] | UsersCrud['Server']['Read']): UserExtra {
-    if (!crud) {
-      throw new StackAssertionError("User not found");
-    }
-    const app = this;
-    return {
       async setDisplayName(displayName: string) {
         return await this.update({ displayName });
       },
       async setClientMetadata(metadata: Record<string, any>) {
         return await this.update({ clientMetadata: metadata });
       },
-
+      async setServerMetadata(metadata: Record<string, any>) {
+        return await this.update({ serverMetadata: metadata });
+      },
       async setSelectedTeam(team: Team | null) {
         return await this.update({ selectedTeamId: team?.id ?? null });
       },
-
       getConnectedAccount: async () => {
         return await app._checkFeatureSupport("getConnectedAccount() on ServerUser", {});
       },
@@ -1414,13 +1395,6 @@ class _StackServerAppImpl<HasTokenStore extends boolean, ProjectId extends strin
       async updatePassword(options: { oldPassword?: string, newPassword: string}) {
         return await app._checkFeatureSupport("updatePassword() on ServerUser", {});
       },
-    };
-  }
-
-  protected _serverUserFromCrud(crud: UsersCrud['Server']['Read']): ServerUser {
-    return {
-      ...this._createUserExtra(crud),
-      ...this._createBaseUser(crud),
     };
   }
 
@@ -1848,7 +1822,7 @@ class _StackAdminAppImpl<HasTokenStore extends boolean, ProjectId extends string
   }
 
   async updateTeamPermissionDefinition(permissionId: string, data: AdminTeamPermissionDefinitionUpdateOptions) {
-    await this._interface.updatePermissionDefinition(permissionId, data);
+    await this._interface.updatePermissionDefinition(permissionId, serverTeamPermissionDefinitionUpdateOptionsToCrud(data));
     await this._adminTeamPermissionDefinitionsCache.refresh([]);
   }
 
@@ -2076,6 +2050,7 @@ function userUpdateOptionsToCrud(options: UserUpdateOptions): CurrentUserCrud["C
   };
 }
 
+
 type ___________server_user = never;  // this is a marker for VSCode's outline view
 
 type ServerBaseUser = {
@@ -2124,11 +2099,13 @@ type ServerUserUpdateOptions = {
 function serverUserUpdateOptionsToCrud(options: ServerUserUpdateOptions): CurrentUserCrud["Server"]["Update"] {
   return {
     display_name: options.displayName,
-    client_metadata: options.clientMetadata,
-    selected_team_id: options.selectedTeamId,
     primary_email: options.primaryEmail,
-    primary_email_verified: options.primaryEmailVerified,
+    client_metadata: options.clientMetadata,
     server_metadata: options.serverMetadata,
+    selected_team_id: options.selectedTeamId,
+    primary_email_auth_enabled: options.primaryEmailAuthEnabled,
+    primary_email_verified: options.primaryEmailVerified,
+    password: options.password,
   };
 }
 
@@ -2580,6 +2557,7 @@ type _______________VARIOUS_______________ = never;  // this is a marker for VSC
 
 type RedirectToOptions = {
   replace?: boolean,
+  noRedirectBack?: boolean,
 };
 
 type AsyncStoreProperty<Name extends string, Args extends any[], Value, IsMultiple extends boolean> =
