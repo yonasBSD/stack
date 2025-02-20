@@ -113,13 +113,14 @@ async function main() {
   } else if (type === "js") {
     const defaultExtension = await Steps.guessDefaultFileExtension();
     const where = await Steps.getServerOrClientOrBoth();
+    const srcPath = await Steps.guessSrcPath();
     const appFiles = [];
     for (const w of where) {
       const { fileName } = await Steps.writeStackAppFile({
         type,
         defaultExtension,
         indentation: "  ",
-        srcPath: projectPath,
+        srcPath,
       }, w);
       appFiles.push(fileName);
     }
@@ -529,6 +530,20 @@ type === "js" && clientOrServer === "server" ? `\n${indentation}secretServerKey:
     );
     return hasTsConfig ? "ts" : "js";
   },
+
+  /**
+   * note: this is a heuristic, specific frameworks may have better heuristics (eg. the Next.js code uses the location of the app folder)
+   */
+  async guessSrcPath() {
+    const projectPath = await getProjectPath();
+    const potentialSrcPath = path.join(projectPath, "src");
+    const hasSrcFolder = fs.existsSync(
+      path.join(projectPath, "src")
+    );
+    return hasSrcFolder ? potentialSrcPath : projectPath;
+  },
+
+  
 };
 
 
