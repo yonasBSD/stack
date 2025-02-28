@@ -5,6 +5,6 @@
     }
   },
   "github": {
-    "autoJobCancellation": false
+    "autoJobCancelation": false
   }
 }
