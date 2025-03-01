@@ -14,10 +14,10 @@ import { DeepPartialSmartRequestWithSentinel, MergeSmartRequest, SmartRequest, c
 import { SmartResponse, createResponse, validateSmartResponse } from "./smart-response";
 
 class InternalServerError extends StatusError {
-  constructor(error: unknown) {
+  constructor(error: unknown, requestId: string) {
     super(
       StatusError.InternalServerError,
-      ["development", "test"].includes(getNodeEnvironment()) ? `Internal Server Error. The error message follows, but will be stripped in production. ${errorToNiceString(error)}` : `Something went wrong. Please make sure the data you entered is correct.`,
+      ["development", "test"].includes(getNodeEnvironment()) ? `Internal Server Error. The error message follows, but will be stripped in production. ${errorToNiceString(error)}` : `Something went wrong. Please make sure the data you entered is correct.\n\nRequest ID: ${requestId}`,
     );
   }
 }
@@ -36,7 +36,7 @@ const commonErrors = [
  * Catches the given error, logs it if needed and returns it as a StatusError. Errors that are not actually errors
  * (such as Next.js redirects) will be re-thrown.
  */
-function catchError(error: unknown): StatusError {
+function catchError(error: unknown, requestId: string): StatusError {
   // catch some Next.js non-errors and rethrow them
   if (error instanceof Error) {
     const digest = (error as any)?.digest;
@@ -49,7 +49,7 @@ function catchError(error: unknown): StatusError {
 
   if (error instanceof StatusError) return error;
   captureError(`route-handler`, error);
-  return new InternalServerError(error);
+  return new InternalServerError(error, requestId);
 }
 
 /**
@@ -111,7 +111,7 @@ export function handleApiRequest(handler: (req: NextRequest, options: any, reque
       } catch (e) {
         let statusError: StatusError;
         try {
-          statusError = catchError(e);
+          statusError = catchError(e, requestId);
         } catch (e) {
           if (!disableExtendedLogging) console.log(`[    EXC] [${requestId}] ${req.method} ${req.url}: Non-error caught (such as a redirect), will be re-thrown. Digest: ${(e as any)?.digest}`);
           throw e;
@@ -224,7 +224,7 @@ export function createSmartRouteHandler<
       if (reqsErrors.length === 1) {
         throw reqsErrors[0];
       } else {
-        const caughtErrors = reqsErrors.map(e => catchError(e));
+        const caughtErrors = reqsErrors.map(e => catchError(e, requestId));
         throw createOverloadsError(caughtErrors);
       }
     }
