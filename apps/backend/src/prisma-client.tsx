@@ -61,7 +61,7 @@ export async function retryTransaction<T>(fn: (...args: Parameters<Parameters<ty
         }
         return attemptRes;
       });
-    }, isDev ? 1 : 3);
+    }, 3);
 
     span.setAttribute("stack.prisma.transaction.success", res.status === "ok");
     span.setAttribute("stack.prisma.transaction.attempts", res.attempts);
