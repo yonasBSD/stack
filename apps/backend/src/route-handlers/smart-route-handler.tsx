@@ -53,6 +53,12 @@ function catchError(error: unknown, requestId: string): StatusError {
 }
 
 /**
+ * A unique identifier for the current process. This is used to correlate logs in serverless environments that allow
+ * multiple concurrent requests to be handled by the same instance.
+ */
+const processId = generateSecureRandomString(80);
+
+/**
  * Catches any errors thrown in the handler and returns a 500 response with the thrown error message. Also logs the
  * request details.
  */
@@ -65,6 +71,7 @@ export function handleApiRequest(handler: (req: NextRequest, options: any, reque
         "stack.request.request-id": requestId,
         "stack.request.method": req.method,
         "stack.request.url": req.url,
+        "stack.process-id": processId,
       },
     }, async (span) => {
       // Set Sentry scope to include request details
