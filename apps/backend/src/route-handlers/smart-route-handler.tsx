@@ -266,9 +266,9 @@ export function createSmartRouteHandler<
       return await handler.handler(smartReq as any, fullReq);
     });
 
-    const validated = await validateSmartResponse(nextRequest, smartRes, handler.response);
-
-    return validated;
+    return await traceSpan("validating smart response", async () => {
+      return await validateSmartResponse(nextRequest, smartRes, handler.response);
+    });
   };
 
   return Object.assign(handleApiRequest(async (req, options, requestId) => {
