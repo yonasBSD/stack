@@ -8,6 +8,7 @@ import { IframePreventer } from "../components/iframe-preventer";
 import { MessageCard } from "../components/message-cards/message-card";
 import { HandlerUrls, StackClientApp } from "../lib/stack-app";
 import { AccountSettings } from "./account-settings";
+import { CliAuthConfirmation } from "./cli-auth-confirm";
 import { EmailVerification } from "./email-verification";
 import { ErrorPage } from "./error-page";
 import { ForgotPassword } from "./forgot-password";
@@ -29,6 +30,7 @@ type Components = {
   TeamInvitation: typeof TeamInvitation,
   ErrorPage: typeof ErrorPage,
   AccountSettings: typeof AccountSettings,
+  CliAuthConfirmation: typeof CliAuthConfirmation,
 };
 
 type RouteProps = {
@@ -49,6 +51,7 @@ const availablePaths = {
   magicLinkCallback: 'magic-link-callback',
   teamInvitation: 'team-invitation',
   accountSettings: 'account-settings',
+  cliAuthConfirm: 'cli-auth-confirm',
   error: 'error',
 } as const;
 
@@ -158,6 +161,12 @@ function renderComponent(props: {
         searchParams={searchParams}
         fullPage={fullPage}
         {...filterUndefinedINU(componentProps?.ErrorPage)}
+      />;
+    }
+    case availablePaths.cliAuthConfirm: {
+      return <CliAuthConfirmation
+        fullPage={fullPage}
+        {...filterUndefinedINU(componentProps?.CliAuthConfirmation)}
       />;
     }
     default: {
@@ -323,6 +332,7 @@ export default NextStackHandler;
 export default ReactStackHandler;
 END_PLATFORM */
 
+// filter undefined values in object. if object itself is undefined, return undefined
 function filterUndefinedINU<T extends {}>(value: T | undefined): FilterUndefined<T> | undefined {
   return value === undefined ? value : filterUndefined(value);
 }
