@@ -177,16 +177,18 @@ export class _StackServerAppImplIncomplete<HasTokenStore extends boolean, Projec
       interface: new StackServerInterface({
         getBaseUrl: () => getBaseUrl(options.baseUrl),
         projectId: options.projectId ?? getDefaultProjectId(),
+        extraRequestHeaders: options.extraRequestHeaders ?? {},
         clientVersion,
         publishableClientKey: options.publishableClientKey ?? getDefaultPublishableClientKey(),
         secretServerKey: options.secretServerKey ?? getDefaultSecretServerKey(),
       }),
       baseUrl: options.baseUrl,
+      extraRequestHeaders: options.extraRequestHeaders,
       projectId: options.projectId,
       publishableClientKey: options.publishableClientKey,
       tokenStore: options.tokenStore,
-      urls: options.urls ?? {},
-      oauthScopesOnSignIn: options.oauthScopesOnSignIn ?? {},
+      urls: options.urls,
+      oauthScopesOnSignIn: options.oauthScopesOnSignIn,
       redirectMethod: options.redirectMethod,
     });
   }
