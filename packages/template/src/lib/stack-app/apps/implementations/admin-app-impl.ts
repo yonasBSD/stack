@@ -7,8 +7,8 @@ import { InternalProjectsCrud } from "@stackframe/stack-shared/dist/interface/cr
 import { StackAssertionError, throwErr } from "@stackframe/stack-shared/dist/utils/errors";
 import { pick } from "@stackframe/stack-shared/dist/utils/objects";
 import { Result } from "@stackframe/stack-shared/dist/utils/results";
-
-import { InternalEmailsCrud } from "@stackframe/stack-shared/dist/interface/crud/emails";
+import { useMemo } from "react"; // THIS_LINE_PLATFORM react-like
+import { AdminSentEmail } from "../..";
 import { ApiKey, ApiKeyBase, ApiKeyBaseCrudRead, ApiKeyCreateOptions, ApiKeyFirstView, apiKeyCreateOptionsToCrud } from "../../api-keys";
 import { EmailConfig, stackAppInternalsSymbol } from "../../common";
 import { AdminEmailTemplate, AdminEmailTemplateUpdateOptions, adminEmailTemplateUpdateOptionsToCrud } from "../../email-templates";
@@ -19,11 +19,7 @@ import { clientVersion, createCache, getBaseUrl, getDefaultProjectId, getDefault
 import { _StackServerAppImplIncomplete } from "./server-app-impl";
 
 // NEXT_LINE_PLATFORM react-like
-import { useMemo } from "react";
-// NEXT_LINE_PLATFORM react-like
 import { useAsyncCache } from "./common";
-import { AdminSentEmail } from "../../email";
-
 
 export class _StackAdminAppImplIncomplete<HasTokenStore extends boolean, ProjectId extends string> extends _StackServerAppImplIncomplete<HasTokenStore, ProjectId>
 {
