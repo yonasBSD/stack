@@ -99,19 +99,23 @@
   "//": "IF_PLATFORM react-like",
   "peerDependencies": {
     "@types/react": ">=18.2 || >=19.0.0-rc.0",
+    "//": "IF_PLATFORM next",
     "@types/react-dom": ">=18.2 || >=19.0.0-rc.0",
-    "//": "NEXT_LINE_PLATFORM next",
+    "react-dom": ">=18.2 || >=19.0.0-rc.0",
     "next": ">=14.1 || >=15.0.0-canary.0 || >=15.0.0-rc.0",
-    "react": ">=18.2 || >=19.0.0-rc.0",
-    "react-dom": ">=18.2 || >=19.0.0-rc.0"
+    "//": "END_PLATFORM",
+    "//": "NEXT_LINE_PLATFORM next",
+    "react": ">=18.2 || >=19.0.0-rc.0"
   },
   "//": "END_PLATFORM",
   "//": "IF_PLATFORM react-like",
   "peerDependenciesMeta": {
-    "@types/react": {
+    "//": "IF_PLATFORM next",
+    "@types/react-dom": {
       "optional": true
     },
-    "@types/react-dom": {
+    "//": "END_PLATFORM",
+    "@types/react": {
       "optional": true
     }
   },
