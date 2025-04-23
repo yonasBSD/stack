@@ -21,9 +21,16 @@ if (getNodeEnvironment() !== 'production') {
 }
 
 class TransactionErrorThatShouldBeRetried extends Error {
-  constructor(...args: ConstructorParameters<typeof Error>) {
-    super(...args);
+  constructor(cause: unknown) {
+    super("This is an internal error used by Stack Auth to rollback Prisma transactions. It should not be visible to you, so please report this.", { cause });
     this.name = 'TransactionErrorThatShouldBeRetried';
+  }
+}
+
+class TransactionErrorThatShouldNotBeRetried extends Error {
+  constructor(cause: unknown) {
+    super("This is an internal error used by Stack Auth to rollback Prisma transactions. It should not be visible to you, so please report this.", { cause });
+    this.name = 'TransactionErrorThatShouldNotBeRetried';
   }
 }
 
@@ -36,24 +43,34 @@ export async function retryTransaction<T>(fn: (...args: Parameters<Parameters<ty
       return await traceSpan(`transaction attempt #${attemptIndex}`, async (attemptSpan) => {
         const attemptRes = await (async () => {
           try {
-            return await prismaClient.$transaction(async (tx, ...args) => {
-              const res = await fn(tx, ...args);
+            return Result.ok(await prismaClient.$transaction(async (tx, ...args) => {
+              let res;
+              try {
+                res = await fn(tx, ...args);
+              } catch (e) {
+                // we don't want to retry errors that happened in the function, because otherwise we may be retrying due
+                // to other (nested) transactions failing
+                throw new TransactionErrorThatShouldNotBeRetried(e);
+              }
               if (getNodeEnvironment() === 'development' || getNodeEnvironment() === 'test') {
                 // In dev/test, let's just fail the transaction with a certain probability, if we haven't already failed multiple times
                 // this is to test the logic that every transaction is retryable
                 if (attemptIndex < 3 && Math.random() < 0.5) {
-                  throw new TransactionErrorThatShouldBeRetried("Test error for dev/test. This should automatically be retried.");
+                  throw new TransactionErrorThatShouldBeRetried(new Error("Test error for dev/test. This should automatically be retried."));
                 }
               }
-              return Result.ok(res);
+              return res;
             }, {
               isolationLevel: enableSerializable && attemptIndex < 4 ? Prisma.TransactionIsolationLevel.Serializable : undefined,
-            });
+            }));
           } catch (e) {
             // we don't want to retry too aggressively here, because the error may have been thrown after the transaction was already committed
             // so, we select the specific errors that we know are safe to retry
             if (e instanceof TransactionErrorThatShouldBeRetried) {
-              return Result.error(e);
+              return Result.error(e.cause);
+            }
+            if (e instanceof TransactionErrorThatShouldNotBeRetried) {
+              throw e.cause;
             }
             if ([
               "Transaction failed due to a write conflict or a deadlock. Please retry your transaction",
@@ -71,7 +88,7 @@ export async function retryTransaction<T>(fn: (...args: Parameters<Parameters<ty
         return attemptRes;
       });
     }, 5, {
-      exponentialDelayBase: 250,
+      exponentialDelayBase: getNodeEnvironment() === 'development' || getNodeEnvironment() === 'test' ? 3 : 250,
     });
 
     span.setAttribute("stack.prisma.transaction.success", res.status === "ok");
