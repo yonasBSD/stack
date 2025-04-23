@@ -50,6 +50,11 @@ export async function retryTransaction<T>(fn: (...args: Parameters<Parameters<ty
               } catch (e) {
                 // we don't want to retry errors that happened in the function, because otherwise we may be retrying due
                 // to other (nested) transactions failing
+                // however, we make an exception for "Transaction already closed", as those are (annoyingly) thrown on
+                // the actual query, not the $transaction function itself
+                if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2028") { // Transaction already closed
+                  throw new TransactionErrorThatShouldBeRetried(e);
+                }
                 throw new TransactionErrorThatShouldNotBeRetried(e);
               }
               if (getNodeEnvironment() === 'development' || getNodeEnvironment() === 'test') {
