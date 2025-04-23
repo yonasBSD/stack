@@ -22,9 +22,6 @@ export async function ensureUserForEmailAllowsOtp(tenancy: Tenancy, email: strin
     }
   );
 
-  let user;
-  let isNewUser;
-
   if (contactChannel) {
     const otpAuthMethod = contactChannel.projectUser.authMethods.find((m) => m.otpAuthMethod)?.otpAuthMethod;
 
@@ -61,14 +58,13 @@ export async function ensureUserForEmailAllowsOtp(tenancy: Tenancy, email: strin
         });
       }
 
-      user = await usersCrudHandlers.adminRead({
+      return await usersCrudHandlers.adminRead({
         tenancy,
         user_id: contactChannel.projectUser.projectUserId,
       });
     } else {
       throw new KnownErrors.UserWithEmailAlreadyExists(contactChannel.value);
     }
-    return user;
   } else {
     if (!tenancy.config.sign_up_enabled) {
       throw new KnownErrors.SignUpNotEnabled();
