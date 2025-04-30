@@ -1,5 +1,5 @@
 import { validateRedirectUrl } from "@/lib/redirect-urls";
-import { Tenancy } from "@/lib/tenancies";
+import { Tenancy, getSoleTenancyFromProject } from "@/lib/tenancies";
 import { prismaClient } from "@/prisma-client";
 import { Prisma, VerificationCodeType } from "@prisma/client";
 import { KnownErrors } from "@stackframe/stack-shared";
@@ -51,7 +51,7 @@ type VerificationCodeHandler<Data, SendCodeExtraOptions extends {}, SendCodeRetu
 };
 
 type ProjectBranchCombo<AlreadyParsed extends boolean> = (
-  | { project: ProjectsCrud["Admin"]["Read"], branchId: string, tenancy?: undefined }
+  | { project: Omit<ProjectsCrud["Admin"]["Read"], "config">, branchId: string, tenancy?: undefined }
   | (AlreadyParsed extends true ? never : { tenancy: Tenancy, project?: undefined, branchId?: undefined })
 );
 
@@ -225,11 +225,12 @@ export function createVerificationCodeHandler<
       const validatedData = await options.data.validate(data, {
         strict: true,
       });
+      const tenancy = await getSoleTenancyFromProject(project.id);
 
       if (callbackUrl !== undefined && !validateRedirectUrl(
         callbackUrl,
-        project.config.domains,
-        project.config.allow_localhost,
+        tenancy.config.domains,
+        tenancy.config.allow_localhost,
       )) {
         throw new KnownErrors.RedirectUrlNotWhitelisted();
       }

@@ -1,4 +1,5 @@
 import { createOrUpdateProject } from "@/lib/projects";
+import { getSoleTenancyFromProject } from "@/lib/tenancies";
 import { retryTransaction } from "@/prisma-client";
 import { createCrudHandlers } from "@/route-handlers/crud-handler";
 import { projectsCrud } from "@stackframe/stack-shared/dist/interface/crud/projects";
@@ -8,14 +9,21 @@ import { createLazyProxy } from "@stackframe/stack-shared/dist/utils/proxies";
 export const projectsCrudHandlers = createLazyProxy(() => createCrudHandlers(projectsCrud, {
   paramsSchema: yupObject({}),
   onUpdate: async ({ auth, data }) => {
-    return await createOrUpdateProject({
+    const project = await createOrUpdateProject({
       type: "update",
       projectId: auth.project.id,
       data: data,
     });
+    return {
+      ...project,
+      config: (await getSoleTenancyFromProject(project)).config, // since we updated the project, we need tore-fetch the new config
+    };
   },
   onRead: async ({ auth }) => {
-    return auth.project;
+    return {
+      ...auth.project,
+      config: auth.tenancy.config,
+    };
   },
   onDelete: async ({ auth }) => {
     await retryTransaction(async (tx) => {
