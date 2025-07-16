@@ -1382,10 +1382,10 @@ describe("with server access", () => {
         "status": 409,
         "body": {
           "code": "USER_EMAIL_ALREADY_EXISTS",
-        "details": {
-          "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
-          "would_work_if_email_was_verified": false,
-        },
+          "details": {
+            "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
+            "would_work_if_email_was_verified": false,
+          },
           "error": "A user with email \\"default-mailbox--<stripped UUID>@stack-generated.example.com\\" already exists.",
         },
         "headers": Headers {
@@ -1947,10 +1947,10 @@ describe("with server access", () => {
         "status": 409,
         "body": {
           "code": "USER_EMAIL_ALREADY_EXISTS",
-        "details": {
-          "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
-          "would_work_if_email_was_verified": false,
-        },
+          "details": {
+            "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
+            "would_work_if_email_was_verified": false,
+          },
           "error": "A user with email \\"default-mailbox--<stripped UUID>@stack-generated.example.com\\" already exists.",
         },
         "headers": Headers {
@@ -2010,10 +2010,10 @@ describe("with server access", () => {
         "status": 409,
         "body": {
           "code": "USER_EMAIL_ALREADY_EXISTS",
-        "details": {
-          "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
-          "would_work_if_email_was_verified": false,
-        },
+          "details": {
+            "email": "default-mailbox--<stripped UUID>@stack-generated.example.com",
+            "would_work_if_email_was_verified": false,
+          },
           "error": "A user with email \\"default-mailbox--<stripped UUID>@stack-generated.example.com\\" already exists.",
         },
         "headers": Headers {
