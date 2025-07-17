@@ -846,7 +846,7 @@ const widgets: Widget<any, any>[] = [
 
       return (
         <PacificaCard
-          title="Widget builder"
+          title="Widget compiler"
           subtitle="This is a subtitle"
         >
           <textarea value={source} onChange={(e) => setSource(e.target.value)} style={{ width: '100%', height: '35%', fontFamily: "monospace" }} />
@@ -930,7 +930,6 @@ const widgets: Widget<any, any>[] = [
       return (
         <PacificaCard
           title="Widget builder"
-          subtitle="This is a subtitle"
         >
           <textarea value={source} onChange={(e) => setSource(e.target.value)} style={{ width: '100%', height: '35%', fontFamily: "monospace" }} />
           {widgetInstanceRef.current && (
