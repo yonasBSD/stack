@@ -1046,7 +1046,7 @@ function SwappableWidgetInstanceGrid(props: { gridRef: RefState<WidgetInstanceGr
           flexDirection: 'column',
         } : {
           display: 'grid',
-          gridTemplateColumns: `repeat(${props.gridRef.current.width}, auto)`,
+          gridTemplateColumns: `repeat(${props.gridRef.current.width}, 1fr)`,
           gridTemplateRows: `repeat(${2 * props.gridRef.current.height + 1}, auto)`,
         },
 
@@ -1065,6 +1065,16 @@ function SwappableWidgetInstanceGrid(props: { gridRef: RefState<WidgetInstanceGr
         onDragStart={(event) => {
           setActiveInstanceId(event.active.id as string);
           setDraggingType("var-height");
+        }}
+        onDragAbort={() => {
+          setActiveInstanceId(null);
+          setOverVarHeightSlot(null);
+          setDraggingType(null);
+        }}
+        onDragCancel={() => {
+          setActiveInstanceId(null);
+          setOverVarHeightSlot(null);
+          setDraggingType(null);
         }}
         onDragEnd={(event) => {
           setActiveInstanceId(null);
@@ -1109,7 +1119,7 @@ function SwappableWidgetInstanceGrid(props: { gridRef: RefState<WidgetInstanceGr
               return (
                 <React.Fragment key={i}>
                   {props.gridRef.current.canAddVarHeight(y) && (
-                    <div>
+                    <div className="relative">
                       <VarHeightSlot isOver={isOverVarHeightSlot} location={location} />
                     </div>
                   )}
@@ -1170,6 +1180,18 @@ function SwappableWidgetInstanceGrid(props: { gridRef: RefState<WidgetInstanceGr
         onDragStart={(event) => {
           setActiveInstanceId(event.active.id as string);
           setDraggingType("element");
+        }}
+        onDragAbort={() => {
+          setHoverElementSwap(null);
+          setActiveInstanceId(null);
+          setOverElementPosition(null);
+          setDraggingType(null);
+        }}
+        onDragCancel={() => {
+          /*setHoverElementSwap(null);
+          setActiveInstanceId(null);
+          setOverElementPosition(null);
+          setDraggingType(null);*/
         }}
         onDragEnd={(event) => {
           setHoverElementSwap(null);
@@ -1356,6 +1378,7 @@ function ElementSlot(props: { isSingleColumnMode: boolean, isOver: boolean, chil
       style={{
         position: 'relative',
         display: 'flex',
+        minWidth: 0,  // even if the widget is larger, we don't want to take up more width than the grid unit
         backgroundColor: props.isOver ? '#88888822' : undefined,
         borderRadius: '8px',
         gridColumn: `${props.x + 1} / span ${props.width}`,
