@@ -695,7 +695,7 @@ it("should trigger multiple permission webhooks when a custom permission is incl
   const createEndpointResponse = await niceFetch(STACK_SVIX_SERVER_URL + `/api/v1/app/${projectId}/endpoint`, {
     method: "POST",
     body: JSON.stringify({
-      url: "https://example.com"
+      url: "http://localhost:12345/webhook"
     }),
     headers: {
       "Authorization": `Bearer ${svixToken}`,
