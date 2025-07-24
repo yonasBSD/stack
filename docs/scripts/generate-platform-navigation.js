@@ -61,7 +61,7 @@ function joinUrlPath(...segments: string[]): string {
   return segments
     .filter(segment => segment && segment.length > 0)
     .join('/')
-    .replace(/\/+/g, '/'); // Remove duplicate slashes
+    .replace(/\\/+/g, '/'); // Remove duplicate slashes
 }
 
 /**
@@ -79,7 +79,7 @@ export function pageExistsForPlatform(path: string, platform: Platform): boolean
   if (!page && !pathWithExt.includes('/index.mdx')) {
     const indexPath = normalizedPath.endsWith('.mdx')
       ? normalizedPath.replace('.mdx', '/index.mdx')
-      : joinUrlPath(normalizedPath, 'index.mdx');
+      : \`\${normalizedPath}/index.mdx\`;
     page = PLATFORM_PAGES.find(p => p.path === indexPath);
   }
 
