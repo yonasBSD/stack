@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getLLMText } from '../../../../lib/get-llm-text';
 import { apiSource, source } from '../../../../lib/source';

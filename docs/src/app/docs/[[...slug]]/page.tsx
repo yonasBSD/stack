@@ -7,6 +7,7 @@ import {
 import { getMDXComponents } from '@/mdx-components';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { source } from 'lib/source';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 export default async function Page(props: {
@@ -49,7 +50,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata(props: {
   params: Promise<{ slug?: string[] }>,
-}) {
+}): Promise<Metadata> {
   const params = await props.params;
   const page = source.getPage(params.slug);
   if (!page) redirect("/");
