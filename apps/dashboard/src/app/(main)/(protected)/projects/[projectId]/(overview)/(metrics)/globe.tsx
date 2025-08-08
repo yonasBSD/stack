@@ -63,7 +63,7 @@ export function GlobeSection({ countryData, totalUsers, children }: {countryData
     resumeRenderIntervalRef.current = setTimeout(() => {
       globeRef.current?.pauseAnimation();  // conditional, because globe may have been destroyed
       resumeRenderIntervalRef.current = null;
-    }, 200);
+    }, 1000);
 
     // resume animation
     // we only resume if we haven't already resumed before to prevent a StackOverflow: resumeAnimation -> onZoom -> resumeRender -> resumeAnimation, etc etc
