@@ -1108,6 +1108,16 @@ export namespace Project {
     });
     return createResult;
   }
+
+  export async function updateConfig(config: any) {
+    const response = await niceBackendFetch(`/api/latest/internal/config/override`, {
+      accessType: "admin",
+      method: "PATCH",
+      body: { config_override_string: JSON.stringify(config) },
+    });
+    expect(response.body).toMatchInlineSnapshot(`{}`);
+    expect(response.status).toBe(200);
+  }
 }
 
 export namespace Team {
@@ -1226,7 +1236,7 @@ export namespace Team {
 }
 
 export namespace User {
-  export function setBackendContextFromUser({ mailbox, accessToken, refreshToken }: {mailbox: Mailbox, accessToken: string, refreshToken: string}) {
+  export function setBackendContextFromUser({ mailbox, accessToken, refreshToken }: { mailbox: Mailbox, accessToken: string, refreshToken: string }) {
     backendContext.set({
       mailbox,
       userAuth: {
@@ -1246,7 +1256,7 @@ export namespace User {
     return response.body;
   }
 
-  export async function create({ emailAddress }: {emailAddress?: string} = {}) {
+  export async function create({ emailAddress }: { emailAddress?: string } = {}) {
     // Create new mailbox
     const email = emailAddress ?? `unindexed-mailbox--${randomUUID()}${generatedEmailSuffix}`;
     const mailbox = createMailbox(email);
@@ -1282,7 +1292,7 @@ export namespace User {
     const users = [];
     for (let i = 0; i < count; i++) {
       const user = await User.create({});
-        users.push(user);
+      users.push(user);
     }
     return users;
   }
@@ -1372,5 +1382,50 @@ export namespace Webhook {
       });
     }
     return [];
+  }
+}
+
+export namespace Payments {
+  export async function createPurchaseUrlAndGetCode() {
+    await Project.updateConfig({
+      payments: {
+        stripeAccountId: "acct_test123",
+        offers: {
+          "test-offer": {
+            displayName: "Test Offer",
+            customerType: "user",
+            serverOnly: false,
+            stackable: false,
+            prices: {
+              "monthly": {
+                USD: "1000",
+                interval: [1, "month"],
+              },
+            },
+            includedItems: {},
+          },
+        },
+      },
+    });
+
+    const { userId } = await User.create();
+    const response = await niceBackendFetch("/api/latest/payments/purchases/create-purchase-url", {
+      method: "POST",
+      accessType: "client",
+      body: {
+        customer_id: userId,
+        offer_id: "test-offer",
+      },
+    });
+    expect(response.status).toBe(200);
+    const body = response.body as { url: string };
+    expect(body.url).toMatch(/^https?:\/\/localhost:8101\/purchase\/[a-z0-9-_]+$/);
+    const codeMatch = body.url.match(/\/purchase\/([a-z0-9-_]+)/);
+    const code = codeMatch ? codeMatch[1] : undefined;
+    expect(code).toBeDefined();
+
+    return {
+      code,
+    };
   }
 }
