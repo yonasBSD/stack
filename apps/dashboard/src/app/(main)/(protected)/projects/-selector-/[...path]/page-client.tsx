@@ -1,20 +1,20 @@
 "use client";
 
-import { useRouter } from "@/components/router";
 import { ProjectAvatar } from "@/components/project-switcher";
+import { useRouter } from "@/components/router";
 import { useUser } from "@stackframe/stack";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
   CardTitle,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-  Button
+  SelectValue
 } from "@stackframe/stack-ui";
 import { PlusIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -27,7 +27,7 @@ export function ProjectSelectorPageClient(props: { deepPath: string }) {
 
   useEffect(() => {
     if (selectedProject) {
-      const targetPath = props.deepPath 
+      const targetPath = props.deepPath
         ? `/projects/${selectedProject}/${props.deepPath}`
         : `/projects/${selectedProject}`;
       router.push(targetPath);
@@ -43,14 +43,14 @@ export function ProjectSelectorPageClient(props: { deepPath: string }) {
             Choose a project to continue
             {props.deepPath && (
               <span className="block mt-1 text-xs">
-                You'll be redirected to: /{props.deepPath}
+                You&apos;ll be redirected to: /{props.deepPath}
               </span>
             )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Select value={selectedProject} onValueChange={setSelectedProject}>
-            <SelectTrigger 
+            <SelectTrigger
               className="w-full h-12"
               aria-label="Select project"
             >
@@ -84,9 +84,9 @@ export function ProjectSelectorPageClient(props: { deepPath: string }) {
             </div>
           </div>
 
-          <Button 
-            onClick={() => router.push("/new-project")} 
-            variant="outline" 
+          <Button
+            onClick={() => router.push("/new-project")}
+            variant="outline"
             className="w-full gap-2"
           >
             <PlusIcon className="h-4 w-4" />

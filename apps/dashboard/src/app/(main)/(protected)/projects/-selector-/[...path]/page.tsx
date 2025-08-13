@@ -5,6 +5,6 @@ export default async function ProjectSelectorPage(
 ) {
   const params = await props.params;
   const path = params.path?.join("/") || "";
-  
+
   return <ProjectSelectorPageClient deepPath={path} />;
 }
