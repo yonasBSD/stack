@@ -1,4 +1,17 @@
 -- Add team-based project ownership
+
+-- Create temporary indexes to speed up the migration queries
+-- Index 1: Composite index for filtering by mirroredProjectId and checking managedProjectIds existence
+CREATE INDEX "idx_temp_migration_project_user_managed" 
+ON "ProjectUser" ("mirroredProjectId") 
+WHERE "serverMetadata" IS NOT NULL 
+  AND "serverMetadata"::jsonb ? 'managedProjectIds';
+
+-- Index 2: GIN index for searching within the managedProjectIds array
+CREATE INDEX "idx_temp_migration_managed_project_ids_gin" 
+ON "ProjectUser" USING GIN ((("serverMetadata"::jsonb -> 'managedProjectIds'))) 
+WHERE "mirroredProjectId" = 'internal';
+
 -- Step 1: Add ownerTeamId column to Project table
 ALTER TABLE "Project" ADD COLUMN "ownerTeamId" UUID;
 
@@ -17,6 +30,35 @@ DECLARE
     group_team_uuid UUID;
     group_project_display_name TEXT;
 BEGIN
+    -- Create a temporary table to pre-compute project ownership counts
+    CREATE TEMP TABLE project_owner_counts AS
+    SELECT 
+        elem AS project_id,
+        COUNT(DISTINCT pu."projectUserId") AS owner_count
+    FROM "ProjectUser" pu,
+         jsonb_array_elements_text(pu."serverMetadata"::jsonb -> 'managedProjectIds') AS elem
+    WHERE pu."mirroredProjectId" = 'internal'
+      AND pu."serverMetadata" IS NOT NULL
+      AND pu."serverMetadata"::jsonb ? 'managedProjectIds'
+    GROUP BY elem;
+
+    -- Create index on the temp table for fast lookups
+    CREATE INDEX idx_temp_project_owner_counts ON project_owner_counts(project_id);
+
+    -- Create a temporary table to map projects to all their owners
+    CREATE TEMP TABLE project_owners AS
+    SELECT 
+        elem AS project_id,
+        pu."tenancyId",
+        pu."projectUserId"
+    FROM "ProjectUser" pu,
+         jsonb_array_elements_text(pu."serverMetadata"::jsonb -> 'managedProjectIds') AS elem
+    WHERE pu."mirroredProjectId" = 'internal'
+      AND pu."serverMetadata" IS NOT NULL
+      AND pu."serverMetadata"::jsonb ? 'managedProjectIds';
+
+    -- Create index on the temp table for fast lookups
+    CREATE INDEX idx_temp_project_owners ON project_owners(project_id);
     -- Loop through all users in the 'internal' project who have managed projects
     FOR user_record IN 
         SELECT 
@@ -86,17 +128,10 @@ BEGIN
         FOR i IN 0..jsonb_array_length(managed_project_ids) - 1
         LOOP
             project_id_text := managed_project_ids ->> i;
-            -- Determine how many users own/manage this project
-            SELECT COUNT(*) INTO owners_count
-            FROM "ProjectUser" pu
-            WHERE pu."mirroredProjectId" = 'internal'
-              AND pu."serverMetadata" IS NOT NULL
-              AND (pu."serverMetadata"::jsonb ? 'managedProjectIds')
-              AND EXISTS (
-                SELECT 1
-                FROM jsonb_array_elements_text(pu."serverMetadata"::jsonb -> 'managedProjectIds') AS elem
-                WHERE elem = project_id_text
-              );
+            -- Look up pre-computed owner count (this is now a simple index lookup, ~0ms)
+            SELECT owner_count INTO owners_count
+            FROM project_owner_counts
+            WHERE project_id = project_id_text;
 
             IF owners_count = 1 THEN
                 -- Single owner: assign to the personal team
@@ -145,20 +180,13 @@ BEGIN
                         "updatedAt"
                     )
                     SELECT
-                        user_record."tenancyId",
-                        pu."projectUserId",
+                        po."tenancyId",
+                        po."projectUserId",
                         group_team_uuid,
                         NOW(),
                         NOW()
-                    FROM "ProjectUser" pu
-                    WHERE pu."mirroredProjectId" = 'internal'
-                      AND pu."serverMetadata" IS NOT NULL
-                      AND (pu."serverMetadata"::jsonb ? 'managedProjectIds')
-                      AND EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements_text(pu."serverMetadata"::jsonb -> 'managedProjectIds') AS elem
-                        WHERE elem = project_id_text
-                      )
+                    FROM project_owners po
+                    WHERE po.project_id = project_id_text
                     ON CONFLICT ("tenancyId", "projectUserId", "teamId") DO NOTHING;
 
                     -- Point the project to the shared team
@@ -175,20 +203,13 @@ BEGIN
                         "updatedAt"
                     )
                     SELECT
-                        user_record."tenancyId",
-                        pu."projectUserId",
+                        po."tenancyId",
+                        po."projectUserId",
                         existing_owner_team_uuid,
                         NOW(),
                         NOW()
-                    FROM "ProjectUser" pu
-                    WHERE pu."mirroredProjectId" = 'internal'
-                      AND pu."serverMetadata" IS NOT NULL
-                      AND (pu."serverMetadata"::jsonb ? 'managedProjectIds')
-                      AND EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements_text(pu."serverMetadata"::jsonb -> 'managedProjectIds') AS elem
-                        WHERE elem = project_id_text
-                      )
+                    FROM project_owners po
+                    WHERE po.project_id = project_id_text
                     ON CONFLICT ("tenancyId", "projectUserId", "teamId") DO NOTHING;
 
                     UPDATE "Project"
@@ -200,3 +221,12 @@ BEGIN
         
     END LOOP;
 END $$;
+
+--SPLIT_STATEMENT_SENTINEL
+
+-- Drop the temporary indexes created for the migration
+DROP INDEX IF EXISTS "idx_temp_migration_project_user_managed";
+
+--SPLIT_STATEMENT_SENTINEL
+
+DROP INDEX IF EXISTS "idx_temp_migration_managed_project_ids_gin";
