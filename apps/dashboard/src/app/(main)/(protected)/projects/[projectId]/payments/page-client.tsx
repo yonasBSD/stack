@@ -15,13 +15,18 @@ import {
   userSpecifiedIdSchema,
   yupRecord
 } from "@stackframe/stack-shared/dist/schema-fields";
+import { wait } from "@stackframe/stack-shared/dist/utils/promises";
 import { Result } from "@stackframe/stack-shared/dist/utils/results";
 import {
   ActionDialog,
   Button,
+  Card,
+  CardContent,
   InlineCode,
+  Typography,
   toast
 } from "@stackframe/stack-ui";
+import { ArrowRight, BarChart3, Repeat, Shield, Wallet, Webhook } from "lucide-react";
 import { PageLayout } from "../page-layout";
 import { useAdminApp } from "../use-admin-app";
 
@@ -38,18 +43,45 @@ export default function PageClient() {
   const setupPayments = async () => {
     const { url } = await stackAdminApp.setupPayments();
     window.location.href = url;
+    await wait(2000);
   };
 
   if (!stripeAccountId) {
     return (
-      <PageLayout
-        title="Payments"
-        description="Manage your payments"
-      >
-        <div className="flex flex-col gap-2 items-center">
-          <Button onClick={setupPayments}>Setup</Button>
-        </div>
-      </PageLayout>
+      <div className="mx-auto max-w-sm h-full flex items-center">
+        <Card className="w-full">
+          <CardContent className="p-8 text-center">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+              <Wallet className="h-6 w-6" />
+            </div>
+            <Typography type="h3" className="mb-4">Setup Payments</Typography>
+            <Typography type="p" variant="secondary" className="mt-2">
+              Let your users pay seamlessly and securely.
+            </Typography>
+            <ul className="mt-6 grid gap-3 text-left text-sm text-muted-foreground">
+              <li className="flex items-center gap-2">
+                <Webhook className="h-4 w-4 text-primary" />
+                <span>No webhooks or syncing</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-primary" />
+                <span>One-time and recurring</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                <span>Usage-based billing</span>
+              </li>
+            </ul>
+            <div className="mt-8 flex justify-center">
+              <SetupPaymentsButton setupPayments={setupPayments} />
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Shield className="h-3.5 w-3.5" />
+              <span>Powered by Stripe</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -58,9 +90,7 @@ export default function PageClient() {
       title="Payments"
       description="Manage your payment offers and items"
       actions={<div className="flex gap-2">
-        {paymentsConfig.stripeAccountSetupComplete ? (
-          <CreatePurchaseDialog />
-        ) : (
+        {!paymentsConfig.stripeAccountSetupComplete && (
           <Button onClick={setupPayments}>Complete Setup</Button>
         )}
       </div>}
@@ -84,6 +114,46 @@ export default function PageClient() {
         project={project}
       />
     </PageLayout >
+  );
+}
+
+function SetupPaymentsButton({ setupPayments }: { setupPayments: () => Promise<void> }) {
+  return (
+    <SmartFormDialog
+      title="Set up payments"
+      formSchema={yup.object({
+        country: yup.string().oneOf(["US", "OTHER"]).defined().label("Country of residence").meta({
+          stackFormFieldRender: (props: any) => (
+            <SelectField
+              {...props}
+              label="Country of residence"
+              required
+              options={[
+                { value: "US", label: "United States" },
+                { value: "OTHER", label: "Other" },
+              ]}
+            />
+          ),
+        }),
+      })}
+      cancelButton
+      okButton={{ label: "Continue" }}
+      trigger={
+        <Button className="group">
+          <span className="inline-flex items-center gap-2">
+            Start Setup
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Button>
+      }
+      onSubmit={async (values) => {
+        if (values.country !== "US") {
+          toast({ title: "Payments is currently only available in the United States", variant: "destructive" });
+          return "prevent-close";
+        }
+        await setupPayments();
+      }}
+    />
   );
 }
 
@@ -205,53 +275,5 @@ function CreateItemDialog({ open, onOpenChange, project }: { open: boolean, onOp
         });
       }}
     />
-  );
-}
-
-
-function CreatePurchaseDialog() {
-  const stackAdminApp = useAdminApp();
-  const [purchaseUrl, setPurchaseUrl] = useState<string | null>(null);
-
-  const createPurchaseUrl = async (data: { customerId: string, offerId: string }) => {
-    const result = await Result.fromPromise(stackAdminApp.createPurchaseUrl(data));
-    if (result.status === "ok") {
-      setPurchaseUrl(result.data);
-      return;
-    }
-    if (result.error instanceof KnownErrors.OfferDoesNotExist) {
-      toast({ title: "Offer with given offerId does not exist", variant: "destructive" });
-    } else if (result.error instanceof KnownErrors.OfferCustomerTypeDoesNotMatch) {
-      toast({ title: "Customer type does not match expected type for this offer", variant: "destructive" });
-    } else if (result.error instanceof KnownErrors.CustomerDoesNotExist) {
-      toast({ title: "Customer with given customerId does not exist", variant: "destructive" });
-    } else {
-      throw result.error;
-    }
-    return "prevent-close";
-  };
-
-  return (
-    <>
-      <SmartFormDialog
-        trigger={<Button>Create Purchase URL</Button>}
-        title="Create New Purchase"
-        formSchema={yup.object({
-          customerId: yup.string().uuid().defined().label("Customer ID"),
-          offerId: yup.string().defined().label("Offer ID"),
-        })}
-        cancelButton
-        okButton={{ label: "Create Purchase URL" }}
-        onSubmit={values => createPurchaseUrl(values)}
-      />
-      <ActionDialog
-        open={purchaseUrl !== null}
-        onOpenChange={() => setPurchaseUrl(null)}
-        title="Purchase URL"
-        okButton
-      >
-        <InlineCode>{purchaseUrl}</InlineCode>
-      </ActionDialog>
-    </>
   );
 }

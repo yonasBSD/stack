@@ -2,7 +2,7 @@ import { ensureItemCustomerTypeMatches, getItemQuantityForCustomer } from "@/lib
 import { getPrismaClientForTenancy } from "@/prisma-client";
 import { createSmartRouteHandler } from "@/route-handlers/smart-route-handler";
 import { KnownErrors } from "@stackframe/stack-shared";
-import { adaptSchema, adminAuthTypeSchema, clientOrHigherAuthTypeSchema, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
+import { adaptSchema, clientOrHigherAuthTypeSchema, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
 import { getOrUndefined } from "@stackframe/stack-shared/dist/utils/objects";
 
 
@@ -41,7 +41,12 @@ export const GET = createSmartRouteHandler({
 
     await ensureItemCustomerTypeMatches(req.params.item_id, itemConfig.customerType, req.params.customer_id, tenancy);
     const prisma = await getPrismaClientForTenancy(tenancy);
-    const totalQuantity = await getItemQuantityForCustomer(prisma, tenancy.id, req.params.item_id, req.params.customer_id);
+    const totalQuantity = await getItemQuantityForCustomer({
+      prisma,
+      tenancy,
+      itemId: req.params.item_id,
+      customerId: req.params.customer_id,
+    });
 
     return {
       statusCode: 200,
