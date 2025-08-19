@@ -1,17 +1,5 @@
 -- Add team-based project ownership
 
--- Create temporary indexes to speed up the migration queries
--- Index 1: Composite index for filtering by mirroredProjectId and checking managedProjectIds existence
-CREATE INDEX "idx_temp_migration_project_user_managed" 
-ON "ProjectUser" ("mirroredProjectId") 
-WHERE "serverMetadata" IS NOT NULL 
-  AND "serverMetadata"::jsonb ? 'managedProjectIds';
-
--- Index 2: GIN index for searching within the managedProjectIds array
-CREATE INDEX "idx_temp_migration_managed_project_ids_gin" 
-ON "ProjectUser" USING GIN ((("serverMetadata"::jsonb -> 'managedProjectIds'))) 
-WHERE "mirroredProjectId" = 'internal';
-
 -- Step 1: Add ownerTeamId column to Project table
 ALTER TABLE "Project" ADD COLUMN "ownerTeamId" UUID;
 
@@ -221,12 +209,3 @@ BEGIN
         
     END LOOP;
 END $$;
-
---SPLIT_STATEMENT_SENTINEL
-
--- Drop the temporary indexes created for the migration
-DROP INDEX IF EXISTS "idx_temp_migration_project_user_managed";
-
---SPLIT_STATEMENT_SENTINEL
-
-DROP INDEX IF EXISTS "idx_temp_migration_managed_project_ids_gin";
