@@ -170,6 +170,7 @@
 }
 body:has(.show-site-loading-indicator) .site-loading-indicator {
   opacity: 1;
+  transition: none;
 }
 .site-loading-indicator > .site-loading-indicator-inner {
   width: 40%;
