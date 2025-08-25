@@ -26,7 +26,6 @@ jobs:
       - name: Sync main commits to dev
         run: |
           # Fetch all branches
-          git fetch origin main:main
           git fetch origin dev:dev
           
           # Switch to dev branch
