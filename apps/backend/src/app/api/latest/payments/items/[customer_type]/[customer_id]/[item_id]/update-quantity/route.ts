@@ -1,10 +1,9 @@
-import { adaptSchema, serverOrHigherAuthTypeSchema, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
 import { ensureCustomerExists, getItemQuantityForCustomer } from "@/lib/payments";
 import { getPrismaClientForTenancy, retryTransaction } from "@/prisma-client";
 import { createSmartRouteHandler } from "@/route-handlers/smart-route-handler";
 import { KnownErrors } from "@stackframe/stack-shared";
+import { adaptSchema, serverOrHigherAuthTypeSchema, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
 import { getOrUndefined } from "@stackframe/stack-shared/dist/utils/objects";
-import { typedToUppercase } from "@stackframe/stack-shared/dist/utils/strings";
 
 export const POST = createSmartRouteHandler({
   metadata: {
@@ -72,7 +71,6 @@ export const POST = createSmartRouteHandler({
         data: {
           tenancyId: tenancy.id,
           customerId: req.params.customer_id,
-          customerType: typedToUppercase(req.params.customer_type),
           itemId: req.params.item_id,
           quantity: req.body.delta,
           description: req.body.description,
