@@ -77,6 +77,7 @@ To see all development ports, refer to the index.html of `apps/dev-launchpad/pub
 
 ### Code-related
 - Use ES6 maps instead of records wherever you can.
+- Use `performance.now()` where appropriate for timing deltas, not `Date.now()`
 
 ### Testing-related
 - When writing tests, prefer .toMatchInlineSnapshot over other matchers, if possible. You can check (and modify) the snapshot-serializer.ts file to see how the snapshots are formatted and how non-deterministic values are handled.
