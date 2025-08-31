@@ -95,6 +95,7 @@ describe("GET /api/v1/internal/payments/stripe/account-info", () => {
 
       expect(response).toMatchInlineSnapshot(`
         NiceResponse {
+          "status": 404,
           "body": {
             "code": "STRIPE_ACCOUNT_INFO_NOT_FOUND",
             "error": "Stripe account information not found. Please make sure the user has onboarded with Stripe.",
@@ -147,7 +148,7 @@ describe("GET /api/v1/internal/payments/stripe/account-info", () => {
 
       expect(response).toMatchInlineSnapshot(`
         NiceResponse {
-          "status": 401,
+          "status": 404,
           "body": {
             "code": "STRIPE_ACCOUNT_INFO_NOT_FOUND",
             "error": "Stripe account information not found. Please make sure the user has onboarded with Stripe.",
