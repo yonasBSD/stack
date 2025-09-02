@@ -208,7 +208,7 @@ export const GET = createSmartRouteHandler({
   }),
   handler: async (req) => {
     const now = new Date();
-    const includeAnonymous = req.query?.include_anonymous === "true";
+    const includeAnonymous = req.query.include_anonymous === "true";
 
     const prisma = await getPrismaClientForTenancy(req.auth.tenancy);
 
