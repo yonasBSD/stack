@@ -37,6 +37,15 @@ async function waitForMailboxSubject(mailbox: Mailbox, subject: string) {
   throw new Error(`Message with subject ${subject} not found after 10 tries`);
 }
 
+async function waitForServerMetadataNotNull(userId: string, key: string) {
+  for (let i = 0; i < 10; i++) {
+    const user = await niceBackendFetch(`/api/v1/users/${userId}`, { accessType: "server" });
+    if (user.body.server_metadata?.[key]) return;
+    await wait(1_000);
+  }
+  throw new Error(`Server metadata for user ${userId} with key ${key} not found after 10 tries`);
+}
+
 test("onSignUp workflow sends email for client sign-up", async ({ expect }) => {
   await Project.createAndSwitch();
   const mailbox = await bumpEmailAddress({ unindexed: true });
@@ -243,7 +252,7 @@ test("anonymous sign-up does not trigger; upgrade triggers workflow", async ({ e
   const { userId } = await Auth.Password.signUpWithEmail({ password: "password" });
   expect(userId).toEqual(anonUserId);
 
-  await wait(16_000);
+  await waitForServerMetadataNotNull(anonUserId, markerKey);
   const me2 = await niceBackendFetch("/api/v1/users/me", { accessType: "server" });
   expect(me2.body.is_anonymous).toBe(false);
   expect(me2.body.server_metadata?.[markerKey]).toBe(me2.body.primary_email);
@@ -269,7 +278,7 @@ test("workflow source changes take effect for subsequent sign-ups", async ({ exp
   });
   await bumpEmailAddress({ unindexed: true });
   await Auth.Password.signUpWithEmail({ password: "password" });
-  await wait(16_000);
+  await waitForServerMetadataNotNull("me", markerKey);
   const me1 = await niceBackendFetch("/api/v1/users/me", { accessType: "server" });
   expect(me1.body.server_metadata?.[markerKey]).toBe("v1");
 
@@ -287,7 +296,7 @@ test("workflow source changes take effect for subsequent sign-ups", async ({ exp
   });
   await bumpEmailAddress({ unindexed: true });
   await Auth.Password.signUpWithEmail({ password: "password" });
-  await wait(16_000);
+  await waitForServerMetadataNotNull("me", markerKey);
   const me2 = await niceBackendFetch("/api/v1/users/me", { accessType: "server" });
   expect(me2.body.server_metadata?.[markerKey]).toBe("v2");
 }, {
