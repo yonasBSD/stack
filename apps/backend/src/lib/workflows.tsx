@@ -83,7 +83,7 @@ export async function compileWorkflowSource(source: string): Promise<Result<stri
           if (!callbackFunc) {
             throw new Error(\`Callback \${callbackId} not found. Was it maybe deleted from the workflow?\`);
           }
-          return callbackFunc(JSON.parse(data.dataJson));
+          return callbackFunc(data);
         });
         let scheduledCallback = undefined;
         globalThis.scheduleCallback = ({ callbackId, data, scheduleAt }) => {
