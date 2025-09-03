@@ -50,6 +50,7 @@ async function waitForServerMetadataNotNull(userId: string, key: string) {
 
 test("onSignUp workflow sends email for client sign-up", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const mailbox = await bumpEmailAddress({ unindexed: true });
   const subject = `WF client signup ${crypto.randomUUID()}`;
 
@@ -106,6 +107,7 @@ test("onSignUp workflow sends email for client sign-up", async ({ expect }) => {
 
 test("onSignUp workflow can schedule callbacks", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const mailbox = await bumpEmailAddress({ unindexed: true });
   const subject = `WF client signup ${crypto.randomUUID()}`;
 
@@ -204,6 +206,7 @@ test("onSignUp workflow sends email for server-created user", async ({ expect })
 
 test("disabled workflows do not trigger", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const mailbox = await bumpEmailAddress({ unindexed: true });
   const subject = `WF disabled ${crypto.randomUUID()}`;
 
@@ -237,6 +240,7 @@ test("disabled workflows do not trigger", async ({ expect }) => {
 
 test("compile/runtime errors in one workflow don't block others", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const mailbox = await bumpEmailAddress({ unindexed: true });
   const subject = `WF ok ${crypto.randomUUID()}`;
 
@@ -286,6 +290,7 @@ test("compile/runtime errors in one workflow don't block others", async ({ expec
 
 test("anonymous sign-up does not trigger; upgrade triggers workflow", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const markerKey = `wfMarker-${crypto.randomUUID()}`;
 
   await Project.updateConfig({
@@ -323,6 +328,7 @@ test("anonymous sign-up does not trigger; upgrade triggers workflow", async ({ e
 
 test("workflow source changes take effect for subsequent sign-ups", async ({ expect }) => {
   await Project.createAndSwitch();
+  await InternalApiKey.createAndSetProjectKeys();
   const markerKey = `versionMarker-${crypto.randomUUID()}`;
 
   // v1

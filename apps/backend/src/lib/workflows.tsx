@@ -139,10 +139,13 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
     }
     const workflow = tenancy.config.workflows.availableWorkflows[workflowId];
     const res = await timeout(async () => {
+      console.log(`Compiling workflow ${workflowId}...`);
       const compiledCodeResult = await compileWorkflowSource(workflow.tsSource);
       if (compiledCodeResult.status === "error") {
         return Result.error({ compileError: `Failed to compile workflow: ${compiledCodeResult.error}` });
       }
+
+      console.log(`Compiled workflow source for ${workflowId}, running compilation trigger...`, { compiledCodeResult });
 
       const compileTriggerResult = await triggerWorkflowRaw(tenancy, compiledCodeResult.data, {
         type: "compile",
@@ -150,6 +153,9 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
       if (compileTriggerResult.status === "error") {
         return Result.error({ compileError: `Failed to initialize workflow: ${compileTriggerResult.error}` });
       }
+
+      console.log(`Compilation trigger result:`, { compileTriggerResult });
+
       const compileTriggerOutputResult = compileTriggerResult.data;
       if (typeof compileTriggerOutputResult !== "object" || !compileTriggerOutputResult || !("triggerOutput" in compileTriggerOutputResult)) {
         captureError("workflows-compile-trigger-output", new StackAssertionError(`Failed to parse compile trigger output`, { compileTriggerOutputResult }));
@@ -160,6 +166,8 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
         captureError("workflows-compile-trigger-output", new StackAssertionError(`Failed to parse compile trigger output, should be array of strings`, { compileTriggerOutputResult }));
         return Result.error({ compileError: `Failed to parse compile trigger output, should be array of strings` });
       }
+
+      console.log(`Workflow ${workflowId} compiled successfully, returning result...`, { registeredTriggers, compiledCodeResult });
 
       return Result.ok({
         compiledCode: compiledCodeResult.data,
@@ -369,46 +377,48 @@ async function compileAndGetEnabledWorkflows(tenancy: Tenancy): Promise<Map<stri
 }
 
 async function triggerWorkflowRaw(tenancy: Tenancy, compiledWorkflowCode: string, trigger: WorkflowTrigger): Promise<Result<unknown, string>> {
-  const workflowToken = generateSecureRandomString();
-  const workflowTriggerToken = await globalPrismaClient.workflowTriggerToken.create({
-    data: {
-      expiresAt: new Date(Date.now() + 1000 * 35),
-      tenancyId: tenancy.id,
-      tokenHash: await hashWorkflowTriggerToken(workflowToken),
-    },
-  });
-
-  const tokenRefreshInterval = setInterval(() => {
-    runAsynchronously(async () => {
-      await globalPrismaClient.workflowTriggerToken.update({
-        where: {
-          tenancyId_id: {
-            tenancyId: tenancy.id,
-            id: workflowTriggerToken.id,
-          },
-        },
-        data: { expiresAt: new Date(Date.now() + 1000 * 35) },
-      });
-    });
-  }, 10_000);
-
-  try {
-    const freestyle = new Freestyle();
-    const freestyleRes = await freestyle.executeScript(compiledWorkflowCode, {
-      envVars: {
-        STACK_WORKFLOW_TRIGGER_DATA: JSON.stringify(trigger),
-        NEXT_PUBLIC_STACK_PROJECT_ID: tenancy.project.id,
-        NEXT_PUBLIC_STACK_API_URL: getEnvVariable("NEXT_PUBLIC_STACK_API_URL").replace("http://localhost", "http://host.docker.internal"),  // the replace is a hardcoded hack for the Freestyle mock server
-        NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: "<placeholder publishable client key; the actual auth happens with the workflow token>",
-        STACK_SECRET_SERVER_KEY: "<placeholder secret server key; the actual auth happens with the workflow token>",
-        STACK_WORKFLOW_TOKEN_SECRET: workflowToken,
+  return await traceSpan({ description: `triggerWorkflowRaw ${trigger.type}` }, async () => {
+    const workflowToken = generateSecureRandomString();
+    const workflowTriggerToken = await globalPrismaClient.workflowTriggerToken.create({
+      data: {
+        expiresAt: new Date(Date.now() + 1000 * 35),
+        tenancyId: tenancy.id,
+        tokenHash: await hashWorkflowTriggerToken(workflowToken),
       },
-      nodeModules: Object.fromEntries(Object.entries(externalPackages).map(([packageName, version]) => [packageName, version])),
     });
-    return Result.map(freestyleRes, (data) => data.result);
-  } finally {
-    clearInterval(tokenRefreshInterval);
-  }
+
+    const tokenRefreshInterval = setInterval(() => {
+      runAsynchronously(async () => {
+        await globalPrismaClient.workflowTriggerToken.update({
+          where: {
+            tenancyId_id: {
+              tenancyId: tenancy.id,
+              id: workflowTriggerToken.id,
+            },
+          },
+          data: { expiresAt: new Date(Date.now() + 1000 * 35) },
+        });
+      });
+    }, 10_000);
+
+    try {
+      const freestyle = new Freestyle();
+      const freestyleRes = await freestyle.executeScript(compiledWorkflowCode, {
+        envVars: {
+          STACK_WORKFLOW_TRIGGER_DATA: JSON.stringify(trigger),
+          NEXT_PUBLIC_STACK_PROJECT_ID: tenancy.project.id,
+          NEXT_PUBLIC_STACK_API_URL: getEnvVariable("NEXT_PUBLIC_STACK_API_URL").replace("http://localhost", "http://host.docker.internal"),  // the replace is a hardcoded hack for the Freestyle mock server
+          NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: "<placeholder publishable client key; the actual auth happens with the workflow token>",
+          STACK_SECRET_SERVER_KEY: "<placeholder secret server key; the actual auth happens with the workflow token>",
+          STACK_WORKFLOW_TOKEN_SECRET: workflowToken,
+        },
+        nodeModules: Object.fromEntries(Object.entries(externalPackages).map(([packageName, version]) => [packageName, version])),
+      });
+      return Result.map(freestyleRes, (data) => data.result);
+    } finally {
+      clearInterval(tokenRefreshInterval);
+    }
+  });
 }
 
 async function createScheduledTrigger(tenancy: Tenancy, workflowId: string, trigger: WorkflowTrigger, scheduledAt: Date) {

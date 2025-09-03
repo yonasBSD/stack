@@ -218,20 +218,12 @@ export namespace Auth {
     });
     expect(response).toMatchInlineSnapshot(`
       NiceResponse {
-        "status": 401,
-        "body": {
-          "code": "ADMIN_ACCESS_TOKEN_EXPIRED",
-          "details": { "expired_at_millis": 1756938402000 },
-          "error": "Admin access token has expired. Please refresh it and try again. (The access token expired at 2025-09-03T22:26:42.000Z.)",
-        },
-        "headers": Headers {
-          "x-stack-known-error": "ADMIN_ACCESS_TOKEN_EXPIRED",
-          <some fields may have been hidden>,
-        },
+        "status": 200,
+        "body": { "access_token": <stripped field 'access_token'> },
+        "headers": Headers { <some fields may have been hidden> },
       }
     `);
     backendContext.set({ userAuth: { accessToken: response.body.access_token, refreshToken: response.body.refresh_token } });
-    await ensureParsableAccessToken();
     return {
       refreshAccessTokenResponse: response,
     };
