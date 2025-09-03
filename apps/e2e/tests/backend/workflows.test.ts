@@ -28,22 +28,22 @@ async function configureEmailAndWorkflow(workflowId: string, tsSource: string, e
 }
 
 async function waitForMailboxSubject(mailbox: Mailbox, subject: string) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 15; i++) {
     const messages = await mailbox.fetchMessages();
     const message = messages.find((m) => m.subject === subject);
     if (message) return;
     await wait(1_000);
   }
-  throw new Error(`Message with subject ${subject} not found after 10 tries`);
+  throw new Error(`Message with subject ${subject} not found after 15 tries`);
 }
 
 async function waitForServerMetadataNotNull(userId: string, key: string) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 15; i++) {
     const user = await niceBackendFetch(`/api/v1/users/${userId}`, { accessType: "server" });
     if (user.body.server_metadata?.[key]) return;
     await wait(1_000);
   }
-  throw new Error(`Server metadata for user ${userId} with key ${key} not found after 10 tries`);
+  throw new Error(`Server metadata for user ${userId} with key ${key} not found after 15 tries`);
 }
 
 test("onSignUp workflow sends email for client sign-up", async ({ expect }) => {
@@ -156,7 +156,7 @@ test("disabled workflows do not trigger", async ({ expect }) => {
 
   await Auth.Password.signUpWithEmail({ password: "password" });
 
-  await wait(12_000);
+  await wait(18_000);
 
   expect(await mailbox.fetchMessages()).toMatchInlineSnapshot(`
     [
@@ -244,7 +244,7 @@ test("anonymous sign-up does not trigger; upgrade triggers workflow", async ({ e
   const { userId: anonUserId } = await Auth.Anonymous.signUp();
 
   // ensure marker not present yet
-  await wait(16_000);
+  await wait(18_000);
   const me1 = await niceBackendFetch("/api/v1/users/me", { accessType: "client" });
   expect(me1.body.server_metadata?.[markerKey]).toBeUndefined();
 

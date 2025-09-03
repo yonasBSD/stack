@@ -13,6 +13,7 @@ import { Result } from "@stackframe/stack-shared/dist/utils/results";
 import { generateUuid } from "@stackframe/stack-shared/dist/utils/uuids";
 import { Freestyle } from "./freestyle";
 import { Tenancy } from "./tenancies";
+import { upstash } from "./upstash";
 
 const externalPackages = {
   '@stackframe/stack': 'latest',
@@ -431,74 +432,119 @@ async function createScheduledTrigger(tenancy: Tenancy, workflowId: string, trig
       },
     },
   });
+
+  await upstash.publishJSON({
+    url: new URL(`/api/v1/internal/trigger/run-scheduled`, getEnvVariable("NEXT_PUBLIC_STACK_API_URL").replace("http://localhost", "http://host.docker.internal")).toString(),
+    body: {
+      tenancyId: tenancy.id,
+    },
+    notBefore: Math.floor(scheduledAt.getTime() / 1000),
+  });
+
   return dbTrigger;
 }
 
-async function triggerWorkflow(tenancy: Tenancy, compiledWorkflow: CompiledWorkflow, triggerId: string): Promise<Result<void, string>> {
-  if (compiledWorkflow.compiledCode === null) {
-    return Result.error(`Workflow ${compiledWorkflow.id} failed to compile: ${compiledWorkflow.compileError}`);
-  }
-
+export async function triggerScheduledWorkflows(tenancy: Tenancy) {
   const prisma = await getPrismaClientForTenancy(tenancy);
-  const trigger = await prisma.workflowTrigger.update({
-    where: {
-      tenancyId_id: {
-        tenancyId: tenancy.id,
-        id: triggerId,
-      },
-    },
-    data: {
-      compiledWorkflowId: compiledWorkflow.id,
-      scheduledAt: null,
-      output: Prisma.DbNull,
-      error: Prisma.DbNull,
-    },
-  });
+  const compiledWorkflows = await compileAndGetEnabledWorkflows(tenancy);
 
-  const res = await triggerWorkflowRaw(tenancy, compiledWorkflow.compiledCode, trigger.triggerData as WorkflowTrigger);
-  if (res.status === "error") {
-    console.log(`Compiled workflow failed to process trigger: ${res.error}`, { trigger, compiledWorkflowId: compiledWorkflow.id, res });
-  } else {
-    if (res.data && typeof res.data === "object" && "scheduledCallback" in res.data && res.data.scheduledCallback && typeof res.data.scheduledCallback === "object") {
-      const scheduledCallback: any = res.data.scheduledCallback;
-      const callbackId = `${scheduledCallback.callbackId}`;
-      const scheduleAt = new Date(scheduledCallback.scheduleAtMillis);
-      const callbackData = scheduledCallback.data;
-      await createScheduledTrigger(
-        tenancy,
-        compiledWorkflow.id,
-        {
-          type: "callback",
-          callbackId,
-          data: callbackData,
-          scheduledAtMillis: scheduleAt.getTime(),
-          callerTriggerId: triggerId,
-          executionId: trigger.executionId,
+  const toTrigger = await retryTransaction(prisma, async (tx) => {
+    const triggers = await tx.workflowTrigger.findMany({
+      where: {
+        tenancyId: tenancy.id,
+        scheduledAt: { lt: new Date(Date.now() + 5_000) },
+      },
+      include: {
+        execution: true,
+      },
+      orderBy: {
+        scheduledAt: "asc",
+      },
+      // let's take multiple triggers so we can catch up on the backlog, in case some triggers never went through (eg. if the queue was down)
+      // however, to prevent deadlocks as we are doing multiple writes in this transaction, we randomize it (so there's
+      // a chance that we only take one trigger, which would never deadlock)
+      take: Math.floor(1 + Math.random() * 3),
+    });
+    const toTrigger = [];
+    for (const trigger of triggers) {
+      const compiledWorkflow = compiledWorkflows.get(trigger.execution.workflowId);
+      const updatedTrigger = await tx.workflowTrigger.update({
+        where: {
+          tenancyId_id: {
+            tenancyId: tenancy.id,
+            id: trigger.id,
+          },
         },
-        scheduleAt
-      );
+        data: {
+          scheduledAt: null,
+          compiledWorkflowId: compiledWorkflow?.id ?? null,
+          output: Prisma.DbNull,
+          error: Prisma.DbNull,
+        },
+        include: {
+          execution: true,
+        },
+      });
+
+      if (compiledWorkflow) {
+        toTrigger.push(updatedTrigger);
+      } else {
+        // the workflow was deleted; we don't run the trigger, but we still mark it in the DB
+      }
     }
-  }
-  await prisma.workflowTrigger.update({
-    where: {
-      tenancyId_id: {
-        tenancyId: tenancy.id,
-        id: triggerId,
-      },
-    },
-    data: {
-      ...res.status === "ok" ? {
-        output: res.data as any,
-      } : {
-        error: res.error,
-      },
-    },
-  });
-  return Result.ok(undefined);
-}
+    return toTrigger;
+  }, { level: "serializable" });
 
-export async function triggerScheduledCallbacks(tenancy: Tenancy) {
+  await allPromisesAndWaitUntilEach(toTrigger.map(async (trigger) => {
+    const compiledWorkflow = compiledWorkflows.get(trigger.execution.workflowId) ?? throwErr(`Compiled workflow ${trigger.execution.workflowId} not found in trigger execution; this should not happen because we should've already checked for this in the transaction!`);
+    if (compiledWorkflow.compiledCode === null) {
+      return Result.error(`Workflow ${compiledWorkflow.id} failed to compile: ${compiledWorkflow.compileError}`);
+    }
 
+    const res = await triggerWorkflowRaw(tenancy, compiledWorkflow.compiledCode, trigger.triggerData as WorkflowTrigger);
+    if (res.status === "error") {
+      // This is probably fine and just a user error, but let's log it regardless
+      console.log(`Compiled workflow failed to process trigger: ${res.error}`, { trigger, compiledWorkflowId: compiledWorkflow.id, res });
+    } else {
+      if (res.data && typeof res.data === "object" && "scheduledCallback" in res.data && res.data.scheduledCallback && typeof res.data.scheduledCallback === "object") {
+        const scheduledCallback: any = res.data.scheduledCallback;
+        const callbackId = `${scheduledCallback.callbackId}`;
+        const scheduleAt = new Date(scheduledCallback.scheduleAtMillis);
+        const callbackData = scheduledCallback.data;
+        await createScheduledTrigger(
+          tenancy,
+          compiledWorkflow.id,
+          {
+            type: "callback",
+            callbackId,
+            data: callbackData,
+            scheduledAtMillis: scheduleAt.getTime(),
+            callerTriggerId: trigger.id,
+            executionId: trigger.executionId,
+          },
+          scheduleAt
+        );
+      }
+    }
+
+    const prisma = await getPrismaClientForTenancy(tenancy);
+    await prisma.workflowTrigger.update({
+      where: {
+        tenancyId_id: {
+          tenancyId: tenancy.id,
+          id: trigger.id,
+        },
+      },
+      data: {
+        ...res.status === "ok" ? {
+          output: res.data as any,
+        } : {
+          error: res.error,
+        },
+      },
+    });
+    return Result.ok(undefined);
+  }));
 }
 
 export async function triggerWorkflows(tenancy: Tenancy, trigger: WorkflowTrigger & { type: WorkflowRegisteredTriggerType }) {
@@ -507,9 +553,8 @@ export async function triggerWorkflows(tenancy: Tenancy, trigger: WorkflowTrigge
     const promises = [...compiledWorkflows]
       .filter(([_, compiledWorkflow]) => compiledWorkflow.registeredTriggers.includes(trigger.type))
       .map(async ([workflowId, compiledWorkflow]) => {
-        const dbTrigger = await createScheduledTrigger(tenancy, workflowId, trigger, new Date());
-        await triggerWorkflow(tenancy, compiledWorkflow, dbTrigger.id);
+        await createScheduledTrigger(tenancy, workflowId, trigger, new Date());
       });
-    await Promise.all(promises);
+    await allPromisesAndWaitUntilEach(promises);
   });
 }
