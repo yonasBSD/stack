@@ -165,9 +165,10 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
         compiledCode: compiledCodeResult.data,
         registeredTriggers: registeredTriggers,
       });
-    }, 10_000);
+    }, 30_000);
 
     if (res.status === "error") {
+      console.warn(`Timed out compiling workflow ${workflowId} after ${res.error.ms}ms`, { res });
       return Result.error({ compileError: `Timed out compiling workflow ${workflowId} after ${res.error.ms}ms` });
     }
     return res.data;
@@ -354,11 +355,11 @@ async function compileAndGetEnabledWorkflows(tenancy: Tenancy): Promise<Map<stri
     const { count } = await prisma.currentlyCompilingWorkflow.deleteMany({
       where: {
         tenancyId: tenancy.id,
-        startedCompilingAt: { lt: new Date(Date.now() - 20_000) },
+        startedCompilingAt: { lt: new Date(Date.now() - 40_000) },
       },
     });
     if (count > 0) {
-      captureError("workflows-compile-timeout", new StackAssertionError(`Deleted ${count} currently compiling workflows that were compiling for more than 20 seconds; this probably indicates a bug in the workflow compilation code`));
+      captureError("workflows-compile-timeout", new StackAssertionError(`Deleted ${count} currently compiling workflows that were compiling for more than 40 seconds; this probably indicates a bug in the workflow compilation code (as they should time out after 30 seconds)`));
     }
 
     await wait(1000);

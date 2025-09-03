@@ -203,6 +203,18 @@ export namespace Auth {
     }
   }
 
+  export async function refreshAccessToken() {
+    const response = await niceBackendFetch("/api/v1/auth/sessions/current/refresh", { method: "POST", accessType: "client" });
+    if (response.status !== 200) {
+      throw new StackAssertionError("Expected session to be valid, but was actually invalid.", { response });
+    }
+    backendContext.set({ userAuth: { accessToken: response.body.access_token, refreshToken: response.body.refresh_token } });
+    await ensureParsableAccessToken();
+    return {
+      refreshAccessTokenResponse: response,
+    };
+  }
+
   /**
    * Valid session & valid access token: OK
    * Valid session & invalid access token: OK

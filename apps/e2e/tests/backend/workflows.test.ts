@@ -216,6 +216,7 @@ test("disabled workflows do not trigger", async ({ expect }) => {
   await Auth.Password.signUpWithEmail({ password: "password" });
 
   await wait(waitRetries * 1_000 * 1.3);
+  await Auth.refreshAccessToken();
 
   expect(await mailbox.fetchMessages()).toMatchInlineSnapshot(`
     [
@@ -304,6 +305,7 @@ test("anonymous sign-up does not trigger; upgrade triggers workflow", async ({ e
 
   // ensure marker not present yet
   await wait(waitRetries * 1_000 * 1.3);
+  await Auth.refreshAccessToken();
   const me1 = await niceBackendFetch("/api/v1/users/me", { accessType: "client" });
   expect(me1.body.server_metadata?.[markerKey]).toBeUndefined();
 
