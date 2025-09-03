@@ -7,7 +7,7 @@ import { encodeBase64 } from "@stackframe/stack-shared/dist/utils/bytes";
 import { generateSecureRandomString, hash } from "@stackframe/stack-shared/dist/utils/crypto";
 import { getEnvVariable } from "@stackframe/stack-shared/dist/utils/env";
 import { StackAssertionError, captureError, errorToNiceString, throwErr } from "@stackframe/stack-shared/dist/utils/errors";
-import { bundleJavaScript } from "@stackframe/stack-shared/dist/utils/esbuild";
+import { bundleJavaScript, initializeEsbuild } from "@stackframe/stack-shared/dist/utils/esbuild";
 import { runAsynchronously, timeout, wait } from "@stackframe/stack-shared/dist/utils/promises";
 import { Result } from "@stackframe/stack-shared/dist/utils/results";
 import { generateUuid } from "@stackframe/stack-shared/dist/utils/uuids";
@@ -230,6 +230,9 @@ import.meta.vitest?.test("compileWorkflow", async ({ expect }) => {
 });
 
 async function compileAndGetEnabledWorkflows(tenancy: Tenancy): Promise<Map<string, CompiledWorkflow>> {
+  // initialize ESBuild early so it doesn't count towards the 10s compilation timeout later
+  await initializeEsbuild();
+
   const compilationVersion = 1;
   const enabledWorkflows = new Map(await Promise.all(Object.entries(tenancy.config.workflows.availableWorkflows)
     .filter(([_, workflow]) => workflow.enabled)
@@ -334,7 +337,6 @@ async function compileAndGetEnabledWorkflows(tenancy: Tenancy): Promise<Map<stri
             },
           },
         });
-        console.log(`Compiled workflow ${workflowId}`);
       } finally {
         await prisma.currentlyCompilingWorkflow.delete({
           where: {
