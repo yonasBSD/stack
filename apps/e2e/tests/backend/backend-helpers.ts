@@ -108,12 +108,17 @@ export async function niceBackendFetch(url: string | URL, options?: Omit<NiceReq
   accessType?: null | "client" | "server" | "admin",
   body?: unknown,
   headers?: Record<string, string | undefined>,
+  userAuth?: {
+    accessToken?: string,
+    refreshToken?: string,
+  },
 }): Promise<NiceResponse> {
-  const { body, headers, accessType, ...otherOptions } = options ?? {};
+  const { body, headers, accessType, userAuth: userAuthOverride, ...otherOptions } = options ?? {};
   if (typeof body === "object") {
     expectSnakeCase(body, "req.body");
   }
-  const { projectKeys, userAuth } = backendContext.value;
+  const projectKeys = backendContext.value.projectKeys;
+  const userAuth = userAuthOverride ?? backendContext.value.userAuth;
   const fullUrl = new URL(url, STACK_BACKEND_BASE_URL);
   if (fullUrl.origin !== new URL(STACK_BACKEND_BASE_URL).origin) throw new StackAssertionError(`Invalid niceBackendFetch origin: ${fullUrl.origin}`);
   if (fullUrl.protocol !== new URL(STACK_BACKEND_BASE_URL).protocol) throw new StackAssertionError(`Invalid niceBackendFetch protocol: ${fullUrl.protocol}`);
@@ -207,9 +212,24 @@ export namespace Auth {
     const response = await niceBackendFetch("/api/v1/auth/sessions/current/refresh", {
       method: "POST",
       accessType: "client",
-      headers: { "x-stack-access-token": "" },
+      userAuth: {
+        refreshToken: backendContext.value.userAuth?.refreshToken,
+      },
     });
-    expect(response).toMatchInlineSnapshot();
+    expect(response).toMatchInlineSnapshot(`
+      NiceResponse {
+        "status": 401,
+        "body": {
+          "code": "ADMIN_ACCESS_TOKEN_EXPIRED",
+          "details": { "expired_at_millis": 1756938402000 },
+          "error": "Admin access token has expired. Please refresh it and try again. (The access token expired at 2025-09-03T22:26:42.000Z.)",
+        },
+        "headers": Headers {
+          "x-stack-known-error": "ADMIN_ACCESS_TOKEN_EXPIRED",
+          <some fields may have been hidden>,
+        },
+      }
+    `);
     backendContext.set({ userAuth: { accessToken: response.body.access_token, refreshToken: response.body.refresh_token } });
     await ensureParsableAccessToken();
     return {
