@@ -236,6 +236,8 @@ test("disabled workflows do not trigger", async ({ expect }) => {
       },
     ]
   `);
+}, {
+  timeout: 90_000,
 });
 
 test("compile/runtime errors in one workflow don't block others", async ({ expect }) => {

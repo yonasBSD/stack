@@ -15,9 +15,7 @@ import { Freestyle } from "./freestyle";
 import { Tenancy } from "./tenancies";
 import { upstash } from "./upstash";
 
-const externalPackages = {
-  '@stackframe/stack': 'latest',
-};
+const externalPackages: Record<string, string> = {};
 
 type WorkflowRegisteredTriggerType = "sign-up";
 
@@ -56,7 +54,9 @@ export async function compileWorkflowSource(source: string): Promise<Result<stri
   const bundleResult = await bundleJavaScript({
     "/source.tsx": source,
     "/entry.js": `
-      import { StackServerApp } from '@stackframe/stack';
+      import { StackServerApp } from 'https://esm.sh/@stackframe/js@2.8.36?target=es2021&standalone';
+
+      globalThis.navigator.onLine = true;
 
       export default async () => {
         globalThis.stackApp = new StackServerApp({
@@ -125,6 +125,7 @@ export async function compileWorkflowSource(source: string): Promise<Result<stri
   }, {
     format: 'esm',
     keepAsImports: Object.keys(externalPackages),
+    allowHttpImports: true,
   });
   if (bundleResult.status === "error") {
     return Result.error(bundleResult.error);
@@ -145,7 +146,7 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
         return Result.error({ compileError: `Failed to compile workflow: ${compiledCodeResult.error}` });
       }
 
-      console.log(`Compiled workflow source for ${workflowId}, running compilation trigger...`, { compiledCodeResult });
+      console.log(`Compiled workflow source for ${workflowId}, running compilation trigger...`, { compiledCodeLength: compiledCodeResult.data.length });
 
       const compileTriggerResult = await triggerWorkflowRaw(tenancy, compiledCodeResult.data, {
         type: "compile",
@@ -154,7 +155,7 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
         return Result.error({ compileError: `Failed to initialize workflow: ${compileTriggerResult.error}` });
       }
 
-      console.log(`Compilation trigger result:`, { compileTriggerResult });
+      console.log(`Compilation trigger completed!`);
 
       const compileTriggerOutputResult = compileTriggerResult.data;
       if (typeof compileTriggerOutputResult !== "object" || !compileTriggerOutputResult || !("triggerOutput" in compileTriggerOutputResult)) {
@@ -167,7 +168,7 @@ async function compileWorkflow(tenancy: Tenancy, workflowId: string): Promise<Re
         return Result.error({ compileError: `Failed to parse compile trigger output, should be array of strings` });
       }
 
-      console.log(`Workflow ${workflowId} compiled successfully, returning result...`, { registeredTriggers, compiledCodeResult });
+      console.log(`Workflow ${workflowId} compiled successfully, returning result...`, { registeredTriggers });
 
       return Result.ok({
         compiledCode: compiledCodeResult.data,
@@ -403,16 +404,24 @@ async function triggerWorkflowRaw(tenancy: Tenancy, compiledWorkflowCode: string
 
     try {
       const freestyle = new Freestyle();
+      const apiUrl = new URL("/", getEnvVariable("NEXT_PUBLIC_STACK_API_URL").replace("http://localhost", "http://host.docker.internal"));
       const freestyleRes = await freestyle.executeScript(compiledWorkflowCode, {
         envVars: {
           STACK_WORKFLOW_TRIGGER_DATA: JSON.stringify(trigger),
           NEXT_PUBLIC_STACK_PROJECT_ID: tenancy.project.id,
-          NEXT_PUBLIC_STACK_API_URL: getEnvVariable("NEXT_PUBLIC_STACK_API_URL").replace("http://localhost", "http://host.docker.internal"),  // the replace is a hardcoded hack for the Freestyle mock server
+          NEXT_PUBLIC_STACK_API_URL: apiUrl.toString(),
           NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: "<placeholder publishable client key; the actual auth happens with the workflow token>",
           STACK_SECRET_SERVER_KEY: "<placeholder secret server key; the actual auth happens with the workflow token>",
           STACK_WORKFLOW_TOKEN_SECRET: workflowToken,
         },
         nodeModules: Object.fromEntries(Object.entries(externalPackages).map(([packageName, version]) => [packageName, version])),
+        networkPermissions: [
+          {
+            action: "allow",
+            behavior: "exact",
+            query: apiUrl.host,
+          },
+        ],
       });
       return Result.map(freestyleRes, (data) => data.result);
     } finally {
