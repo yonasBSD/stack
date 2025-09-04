@@ -42,7 +42,7 @@ export async function bundleJavaScript(sourceFiles: Record<string, string> & { '
   const sourceFilesMap = new Map(Object.entries(sourceFiles));
   const externalPackagesMap = new Map(Object.entries(options.externalPackages ?? {}));
   const keepAsImports = options.keepAsImports ?? [];
-  
+
   const httpImportCache = new Map<string, { contents: string; loader: esbuild.Loader; resolveDir: string }>();
 
   const extToLoader: Map<string, esbuild.Loader> = new Map([
