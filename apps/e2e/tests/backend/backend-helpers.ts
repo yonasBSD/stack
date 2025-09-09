@@ -206,7 +206,7 @@ export namespace Auth {
         "branchId": "main",
         "displayName": expect.toSatisfy(() => true),
         "primaryEmail": expect.toSatisfy(() => true),
-        "primaryEmailVerified": expect.toSatisfy(() => true),
+        "primaryEmailVerified": expect.any(Boolean),
         "selectedTeamId": expect.toSatisfy(() => true),
       });
     }
