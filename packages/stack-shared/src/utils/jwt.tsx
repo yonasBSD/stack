@@ -4,7 +4,7 @@ import * as jose from "jose";
 import { JOSEError } from "jose/errors";
 import { encodeBase64Url } from "./bytes";
 import { getEnvVariable } from "./env";
-import { StackAssertionError } from "./errors";
+import { StackAssertionError, errorToNiceString } from "./errors";
 import { globalVar } from "./globals";
 import { pick } from "./objects";
 import { Result } from "./results";
@@ -26,7 +26,7 @@ export async function getJwtInfo(options: {
     const decodedJwt = jose.decodeJwt(options.jwt);
     return Result.ok({ payload: decodedJwt });
   } catch (e) {
-    return Result.error(e);
+    return Result.error(errorToNiceString(e));
   }
 }
 
