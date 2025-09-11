@@ -24,7 +24,7 @@ export async function getJwtInfo(options: {
   jwt: string,
 }) {
   try {
-    if (typeof options.jwt !== "string") return Result.error({ error: "JWT input is not a string!", input: nicify(options.jwt) });
+    if (typeof options.jwt !== "string") return Result.error({ error: "JWT input is not a string!", stringifiedInput: nicify(options.jwt) });
     if (!options.jwt.startsWith("ey")) return Result.error({ error: "Input is a string, but not a JWT!", input: options.jwt });
     const decodedJwt = jose.decodeJwt(options.jwt);
     return Result.ok({ payload: decodedJwt });
