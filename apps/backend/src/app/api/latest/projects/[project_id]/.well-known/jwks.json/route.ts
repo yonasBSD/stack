@@ -1,4 +1,4 @@
-import { yupArray, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
+import { yupArray, yupNumber, yupObject, yupString, yupTuple } from "@stackframe/stack-shared/dist/schema-fields";
 import { StatusError } from "@stackframe/stack-shared/dist/utils/errors";
 import { deindent } from "@stackframe/stack-shared/dist/utils/strings";
 import { getProject } from "../../../../../../../lib/projects";
@@ -27,7 +27,9 @@ export const GET = createSmartRouteHandler({
     body: yupObject({
       keys: yupArray().defined(),
     }).defined(),
-
+    headers: yupObject({
+      "Cache-Control": yupTuple([yupString().defined()]).defined(),
+    }).defined(),
   }),
   async handler({ params, query }) {
     const project = await getProject(params.project_id);
@@ -42,7 +44,7 @@ export const GET = createSmartRouteHandler({
       body: await getPublicProjectJwkSet(params.project_id, query.include_anonymous === "true"),
       headers: {
         // Cache for 1 hour
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": ["public, max-age=3600"] as const,
       },
     };
   },
