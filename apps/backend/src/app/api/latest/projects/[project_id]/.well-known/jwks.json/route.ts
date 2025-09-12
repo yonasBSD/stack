@@ -27,6 +27,7 @@ export const GET = createSmartRouteHandler({
     body: yupObject({
       keys: yupArray().defined(),
     }).defined(),
+
   }),
   async handler({ params, query }) {
     const project = await getProject(params.project_id);
@@ -39,6 +40,10 @@ export const GET = createSmartRouteHandler({
       statusCode: 200,
       bodyType: "json",
       body: await getPublicProjectJwkSet(params.project_id, query.include_anonymous === "true"),
+      headers: {
+        // Cache for 1 hour
+        "Cache-Control": "public, max-age=3600",
+      },
     };
   },
 });
