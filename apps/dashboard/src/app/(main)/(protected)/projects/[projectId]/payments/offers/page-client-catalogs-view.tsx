@@ -854,7 +854,7 @@ function OfferCard({ id, activeType, offer, allOffers, existingItems, onSave, on
             inputClassName="text-xs font-mono text-center text-muted-foreground"
           />
           <EditableInput
-            value={offer.displayName || ""}
+            value={draft.displayName || ""}
             onUpdate={async (value) => setDraft(prev => ({ ...prev, displayName: value }))}
             readOnly={!isEditing}
             placeholder={"Offer display name"}
