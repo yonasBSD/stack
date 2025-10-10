@@ -91,17 +91,22 @@ export async function applyMigrations(options: {
   const appliedMigrationNames = await getAppliedMigrations({ prismaClient: options.prismaClient, schema: options.schema });
   const newMigrationFiles = migrationFiles.filter(x => !appliedMigrationNames.includes(x.migrationName));
 
+  const log = (msg: string, ...args: any[]) => {
+    if (options.logging) {
+      console.log(`[${new Date().toISOString().slice(11, 23)}] ${msg}`, ...args);
+    }
+  };
+
   const newlyAppliedMigrationNames: string[] = [];
   for (const migration of newMigrationFiles) {
 
     let shouldRepeat = true;
     for (let repeat = 0; shouldRepeat; repeat++) {
-      if (options.logging) {
-        console.log(`Applying migration ${migration.migrationName}${repeat > 0 ? ` (repeat ${repeat})` : ''}`);
-      }
+      log(`Applying migration ${migration.migrationName}${repeat > 0 ? ` (repeat ${repeat})` : ''}`);
 
       // eslint-disable-next-line no-restricted-syntax
       await options.prismaClient.$transaction(async (tx) => {
+        log(`  |> Preparing...`);
         await tx.$executeRaw`
           SELECT pg_advisory_xact_lock(${MIGRATION_LOCK_ID});
         `;
@@ -115,19 +120,22 @@ export async function applyMigrations(options: {
           WHERE "migrationName" = ${migration.migrationName}
         ` as { "?column?": number }[];
         if (existingMigration.length > 0) {
-          if (options.logging) {
-            console.log(`Migration ${migration.migrationName} already applied, skipping`);
-          }
+          log(`  |> Migration ${migration.migrationName} already applied, skipping`);
           shouldRepeat = false;
           return;
         }
 
         for (const statement of migration.sql.split('SPLIT_STATEMENT_SENTINEL')) {
-          const txOrPrismaClient = statement.includes('RUN_OUTSIDE_TRANSACTION_SENTINEL') ? options.prismaClient : tx;
+          const runOutside = statement.includes('RUN_OUTSIDE_TRANSACTION_SENTINEL');
+          const isSingleStatement = statement.includes('SINGLE_STATEMENT_SENTINEL');
+          const isConditionallyRepeatMigration = statement.includes('CONDITIONALLY_REPEAT_MIGRATION_SENTINEL');
 
-          if (statement.includes('SINGLE_STATEMENT_SENTINEL')) {
+          log(`  |> Running statement${isSingleStatement ? "" : "s"}${runOutside ? " outside of transaction" : ""}...`);
+
+          const txOrPrismaClient = runOutside ? options.prismaClient : tx;
+          if (isSingleStatement) {
             const res = await txOrPrismaClient.$queryRaw`${Prisma.raw(statement)}`;
-            if (statement.includes('CONDITIONALLY_REPEAT_MIGRATION_SENTINEL')) {
+            if (isConditionallyRepeatMigration) {
               if (!Array.isArray(res)) {
                 throw new StackAssertionError("Expected an array as a return value of repeat condition", { res });
               }
@@ -139,9 +147,7 @@ export async function applyMigrations(options: {
                   throw new StackAssertionError("Expected should_repeat_migration column in return value of repeat condition to be a boolean (found: " + typeof res[0].should_repeat_migration + ")", { res });
                 }
                 if (res[0].should_repeat_migration) {
-                  if (options.logging) {
-                    console.log(`Migration ${migration.migrationName} requested to be repeated. This is normal and *not* indicative of a problem.`);
-                  }
+                  log(`  |> Migration ${migration.migrationName} requested to be repeated. This is normal and *not* indicative of a problem.`);
                   // Commit the transaction and continue re-running the migration
                   return;
                 }
@@ -164,10 +170,12 @@ export async function applyMigrations(options: {
           `;
         }
 
+        log(`  |> Inserting migration into SchemaMigration...`);
         await tx.$executeRaw`
           INSERT INTO "SchemaMigration" ("migrationName", "finishedAt")
           VALUES (${migration.migrationName}, clock_timestamp())
         `;
+        log(`  |> Done!`);
         newlyAppliedMigrationNames.push(migration.migrationName);
         shouldRepeat = false;
       }, {

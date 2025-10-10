@@ -19,7 +19,7 @@ WITH to_update AS (
      OR NOT "config" ? 'apps.installed.rbac.enabled'
      OR NOT "config" ? 'apps.installed.api-keys.enabled'
      OR NOT "config" ? 'apps.installed.payments.enabled'
-  LIMIT 10000
+  LIMIT 1000
 )
 UPDATE "EnvironmentConfigOverride" eco
 SET "config" = 
