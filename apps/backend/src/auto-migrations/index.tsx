@@ -1,5 +1,6 @@
 import { sqlQuoteIdent } from '@/prisma-client';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { StackAssertionError } from '@stackframe/stack-shared/dist/utils/errors';
 import { MIGRATION_FILES } from './../generated/migration-files';
 
 // The bigint key for the pg advisory lock
@@ -90,74 +91,87 @@ export async function applyMigrations(options: {
   const appliedMigrationNames = await getAppliedMigrations({ prismaClient: options.prismaClient, schema: options.schema });
   const newMigrationFiles = migrationFiles.filter(x => !appliedMigrationNames.includes(x.migrationName));
 
-  const newlyAppliedMigrationNames = [];
+  const newlyAppliedMigrationNames: string[] = [];
   for (const migration of newMigrationFiles) {
-    if (options.logging) {
-      console.log(`Applying migration ${migration.migrationName}`);
-    }
 
-    const transaction = [];
-
-    transaction.push(options.prismaClient.$executeRaw`
-      SELECT pg_advisory_xact_lock(${MIGRATION_LOCK_ID});
-    `);
-
-    transaction.push(options.prismaClient.$executeRaw(Prisma.sql`
-      SET search_path TO ${sqlQuoteIdent(options.schema)};
-    `));
-
-    transaction.push(options.prismaClient.$executeRaw`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1 FROM "SchemaMigration"
-          WHERE "migrationName" = '${Prisma.raw(migration.migrationName)}'
-        ) THEN
-          RAISE EXCEPTION 'MIGRATION_ALREADY_APPLIED';
-        END IF;
-      END
-      $$;
-    `);
-
-    for (const statement of migration.sql.split('SPLIT_STATEMENT_SENTINEL')) {
-      if (statement.includes('SINGLE_STATEMENT_SENTINEL')) {
-        transaction.push(options.prismaClient.$queryRaw`${Prisma.raw(statement)}`);
-      } else {
-        transaction.push(options.prismaClient.$executeRaw`
-          DO $$
-          BEGIN
-            ${Prisma.raw(statement)}
-          END
-          $$;
-        `);
+    let shouldRepeat = true;
+    for (let repeat = 0; shouldRepeat; repeat++) {
+      if (options.logging) {
+        console.log(`Applying migration ${migration.migrationName}${repeat > 0 ? ` (repeat ${repeat})` : ''}`);
       }
-    }
 
-    if (options.artificialDelayInSeconds) {
-      transaction.push(options.prismaClient.$executeRaw`
-        SELECT pg_sleep(${options.artificialDelayInSeconds});
-      `);
-    }
-
-    transaction.push(options.prismaClient.$executeRaw`
-      INSERT INTO "SchemaMigration" ("migrationName", "finishedAt")
-      VALUES (${migration.migrationName}, clock_timestamp())
-    `);
-    try {
       // eslint-disable-next-line no-restricted-syntax
-      await options.prismaClient.$transaction(transaction);
-    } catch (e) {
-      const error = getMigrationError(e);
-      if (error === 'MIGRATION_ALREADY_APPLIED') {
-        if (options.logging) {
-          console.log(`Migration ${migration.migrationName} already applied, skipping`);
-        }
-        continue;
-      }
-      throw e;
-    }
+      await options.prismaClient.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(${MIGRATION_LOCK_ID});
+        `;
 
-    newlyAppliedMigrationNames.push(migration.migrationName);
+        await tx.$executeRaw(Prisma.sql`
+          SET search_path TO ${sqlQuoteIdent(options.schema)};
+        `);
+
+        const existingMigration = await tx.$queryRaw`
+          SELECT 1 FROM "SchemaMigration"
+          WHERE "migrationName" = ${migration.migrationName}
+        ` as { "?column?": number }[];
+        if (existingMigration.length > 0) {
+          if (options.logging) {
+            console.log(`Migration ${migration.migrationName} already applied, skipping`);
+          }
+          shouldRepeat = false;
+          return;
+        }
+
+        for (const statement of migration.sql.split('SPLIT_STATEMENT_SENTINEL')) {
+          if (statement.includes('SINGLE_STATEMENT_SENTINEL')) {
+            const res = await tx.$queryRaw`${Prisma.raw(statement)}`;
+            if (statement.includes('CONDITIONALLY_REPEAT_MIGRATION_SENTINEL')) {
+              if (!Array.isArray(res)) {
+                throw new StackAssertionError("Expected an array as a return value of repeat condition", { res });
+              }
+              if (res.length > 0) {
+                if (!("should_repeat_migration" in res[0])) {
+                  throw new StackAssertionError("Expected should_repeat_migration column in return value of repeat condition", { res });
+                }
+                if (typeof res[0].should_repeat_migration !== 'boolean') {
+                  throw new StackAssertionError("Expected should_repeat_migration column in return value of repeat condition to be a boolean (found: " + typeof res[0].should_repeat_migration + ")", { res });
+                }
+                if (res[0].should_repeat_migration) {
+                  if (options.logging) {
+                    console.log(`Migration ${migration.migrationName} should be repeated`);
+                  }
+                  // Commit the transaction and continue re-running the migration
+                  return;
+                }
+              }
+            }
+          } else {
+            await tx.$executeRaw`
+              DO $$
+              BEGIN
+                ${Prisma.raw(statement)}
+              END
+              $$;
+            `;
+          }
+        }
+
+        if (options.artificialDelayInSeconds) {
+          await tx.$executeRaw`
+            SELECT pg_sleep(${options.artificialDelayInSeconds});
+          `;
+        }
+
+        await tx.$executeRaw`
+          INSERT INTO "SchemaMigration" ("migrationName", "finishedAt")
+          VALUES (${migration.migrationName}, clock_timestamp())
+        `;
+        newlyAppliedMigrationNames.push(migration.migrationName);
+        shouldRepeat = false;
+      }, {
+        timeout: 30_000,
+      });
+    }
   }
 
   return { newlyAppliedMigrationNames };
