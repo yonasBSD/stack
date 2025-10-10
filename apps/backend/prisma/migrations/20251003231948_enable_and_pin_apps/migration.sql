@@ -1,5 +1,9 @@
 -- Create temporary index to speed up the migration
-CREATE INDEX IF NOT EXISTS "temp_eco_config_apps_idx" ON "EnvironmentConfigOverride" USING GIN ("config");
+-- SPLIT_STATEMENT_SENTINEL
+-- SINGLE_STATEMENT_SENTINEL
+-- RUN_OUTSIDE_TRANSACTION_SENTINEL
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "temp_eco_config_apps_idx" ON "EnvironmentConfigOverride" USING GIN ("config");
+-- SPLIT_STATEMENT_SENTINEL
 
 -- SPLIT_STATEMENT_SENTINEL
 -- SINGLE_STATEMENT_SENTINEL

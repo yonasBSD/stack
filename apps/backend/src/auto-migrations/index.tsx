@@ -123,8 +123,10 @@ export async function applyMigrations(options: {
         }
 
         for (const statement of migration.sql.split('SPLIT_STATEMENT_SENTINEL')) {
+          const txOrPrismaClient = statement.includes('RUN_OUTSIDE_TRANSACTION_SENTINEL') ? options.prismaClient : tx;
+
           if (statement.includes('SINGLE_STATEMENT_SENTINEL')) {
-            const res = await tx.$queryRaw`${Prisma.raw(statement)}`;
+            const res = await txOrPrismaClient.$queryRaw`${Prisma.raw(statement)}`;
             if (statement.includes('CONDITIONALLY_REPEAT_MIGRATION_SENTINEL')) {
               if (!Array.isArray(res)) {
                 throw new StackAssertionError("Expected an array as a return value of repeat condition", { res });
@@ -138,7 +140,7 @@ export async function applyMigrations(options: {
                 }
                 if (res[0].should_repeat_migration) {
                   if (options.logging) {
-                    console.log(`Migration ${migration.migrationName} should be repeated`);
+                    console.log(`Migration ${migration.migrationName} requested to be repeated. This is normal and *not* indicative of a problem.`);
                   }
                   // Commit the transaction and continue re-running the migration
                   return;
@@ -146,7 +148,7 @@ export async function applyMigrations(options: {
               }
             }
           } else {
-            await tx.$executeRaw`
+            await txOrPrismaClient.$executeRaw`
               DO $$
               BEGIN
                 ${Prisma.raw(statement)}
