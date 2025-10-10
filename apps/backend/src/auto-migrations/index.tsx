@@ -169,7 +169,12 @@ export async function applyMigrations(options: {
         newlyAppliedMigrationNames.push(migration.migrationName);
         shouldRepeat = false;
       }, {
-        timeout: 30_000,
+        // note: in the vast majority of cases, we want our migrations to be much faster than this, but the error message
+        // of this timeout is unhelpful, so we prefer relying on pg's statement timeout instead
+        // (at the time of writing that one is set to 60s in prod)
+        //
+        // if you have a migration that's slower, consider using CONDITIONALLY_REPEAT_MIGRATION_SENTINEL
+        timeout: 80_000,
       });
     }
   }
