@@ -2,7 +2,7 @@ import * as oauth from 'oauth4webapi';
 
 import * as yup from 'yup';
 import { KnownError, KnownErrors } from '../known-errors';
-import { inlineOfferSchema } from '../schema-fields';
+import { inlineProductSchema } from '../schema-fields';
 import { AccessToken, InternalSession, RefreshToken } from '../sessions';
 import { generateSecureRandomString } from '../utils/crypto';
 import { StackAssertionError, throwErr } from '../utils/errors';
@@ -29,6 +29,7 @@ import { TeamInvitationCrud } from './crud/team-invitation';
 import { TeamMemberProfilesCrud } from './crud/team-member-profiles';
 import { TeamPermissionsCrud } from './crud/team-permissions';
 import { TeamsCrud } from './crud/teams';
+import { CustomerProductsListResponse, ListCustomerProductsOptions } from './crud/products';
 
 export type ClientInterfaceOptions = {
   clientVersion: string,
@@ -1774,15 +1775,33 @@ export class StackClientInterface {
     return await response.json();
   }
 
+  async listProducts(
+    options: ListCustomerProductsOptions,
+    session: InternalSession | null,
+  ): Promise<CustomerProductsListResponse> {
+    const queryParams = new URLSearchParams(filterUndefined({
+      cursor: options.cursor,
+      limit: options.limit !== undefined ? options.limit.toString() : undefined,
+    }));
+    const path = urlString`/payments/products/${options.customer_type}/${options.customer_id}`;
+    const response = await this.sendClientRequest(
+      `${path}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`,
+      {},
+      session,
+    );
+    return await response.json();
+  }
+
   async createCheckoutUrl(
     customer_type: "user" | "team" | "custom",
     customer_id: string,
-    offerIdOrInline: string | yup.InferType<typeof inlineOfferSchema>,
+    productIdOrInline: string | yup.InferType<typeof inlineProductSchema>,
     session: InternalSession | null,
+    returnUrl?: string,
   ): Promise<string> {
-    const offerBody = typeof offerIdOrInline === "string" ?
-      { offer_id: offerIdOrInline } :
-      { inline_offer: offerIdOrInline };
+    const productBody = typeof productIdOrInline === "string" ?
+      { product_id: productIdOrInline } :
+      { inline_product: productIdOrInline };
     const response = await this.sendClientRequest(
       "/payments/purchases/create-purchase-url",
       {
@@ -1790,12 +1809,31 @@ export class StackClientInterface {
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ customer_type, customer_id, ...offerBody }),
+        body: JSON.stringify({ customer_type, customer_id, ...productBody, return_url: returnUrl }),
       },
       session
     );
     const { url } = await response.json() as { url: string };
     return url;
   }
-}
 
+  async transferProject(internalProjectSession: InternalSession, projectIdToTransfer: string, newTeamId: string): Promise<void> {
+    if (this.options.projectId !== "internal") {
+      throw new StackAssertionError("StackClientInterface.transferProject() is only available for internal projects (please specify the project ID in the constructor)");
+    }
+    await this.sendClientRequest(
+      "/internal/projects/transfer",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          project_id: projectIdToTransfer,
+          new_team_id: newTeamId,
+        }),
+      },
+      internalProjectSession,
+    );
+  }
+}
