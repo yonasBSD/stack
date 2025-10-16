@@ -28,7 +28,7 @@ export function HookPrefetcher(props: {
             console.log(`Prefetched ${options.caller}`);
           } else {
             console.warn(deindent`
-              Fetched ${options.caller} without prefetching! Could you maybe add a HookPrefetcher to make this transition faster?
+              Fetched ${options.caller} on ${window.location.pathname} without prefetching! Could you maybe add a HookPrefetcher to make this transition faster?
               
               To do this, if you used a <Link> to navigate to this page, you can add the hook to the \`urlPrefetchers\` in apps/dashboard/src/lib/prefetch/url-prefetcher.tsx. If you didn't use a <Link>, you can use the <HookPrefetcher> component to prefetch the data.
             `, options);
