@@ -13,7 +13,7 @@ type LinkProps = {
   target?: string,
   onClick?: () => void,
   style?: React.CSSProperties,
-  prefetch?: boolean,
+  prefetch?: boolean | "auto",
 };
 
 export function Link(props: LinkProps) {
@@ -24,7 +24,7 @@ export function Link(props: LinkProps) {
     href={props.href}
     target={props.target}
     className={props.className}
-    prefetch={props.prefetch}
+    prefetch={props.prefetch === undefined ? true : props.prefetch}
     style={props.style}
     onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
       if (needConfirm) {
