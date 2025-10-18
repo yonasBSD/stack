@@ -9,7 +9,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SmartRouter } from './smart-router';
 
-const DEV_RATE_LIMIT_MAX_REQUESTS = 3;
+const DEV_RATE_LIMIT_MAX_REQUESTS = 30;
 const DEV_RATE_LIMIT_WINDOW_MS = 10_000;
 const devRateLimitTimestamps: number[] = [];
 
@@ -84,6 +84,7 @@ export async function middleware(request: NextRequest) {
     while (devRateLimitTimestamps.length > 0 && now - devRateLimitTimestamps[0] > DEV_RATE_LIMIT_WINDOW_MS) {
       devRateLimitTimestamps.shift();
     }
+    console.log('devRateLimitTimestamps', devRateLimitTimestamps.length);
     if (devRateLimitTimestamps.length >= DEV_RATE_LIMIT_MAX_REQUESTS) {
       const waitMs = Math.max(0, DEV_RATE_LIMIT_WINDOW_MS - (now - devRateLimitTimestamps[0]));
       const retryAfterSeconds = Math.max(1, Math.ceil(waitMs / 1000));
@@ -107,8 +108,9 @@ export async function middleware(request: NextRequest) {
       }
 
       return response;
+    } else {
+      devRateLimitTimestamps.push(now);
     }
-    devRateLimitTimestamps.push(now);
   }
 
   const newRequestHeaders = new Headers(request.headers);
