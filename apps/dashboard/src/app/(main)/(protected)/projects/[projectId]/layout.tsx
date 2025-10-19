@@ -1,4 +1,6 @@
+import { SiteLoadingIndicator } from "@/components/site-loading-indicator";
 import { UrlPrefetcher } from "@/lib/prefetch/url-prefetcher";
+import { Suspense } from "react";
 import SidebarLayout from "./sidebar-layout";
 import { AdminAppProvider } from "./use-admin-app";
 
@@ -12,8 +14,10 @@ export default async function Layout(
       <UrlPrefetcher href="" />
 
       <SidebarLayout projectId={(await props.params).projectId}>
-        {props.children}
-        {props.modal}
+        <Suspense fallback={<SiteLoadingIndicator />}>
+          {props.children}
+          {props.modal}
+        </Suspense>
       </SidebarLayout>
     </AdminAppProvider>
   );
