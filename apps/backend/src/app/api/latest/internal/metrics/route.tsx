@@ -4,7 +4,6 @@ import { createSmartRouteHandler } from "@/route-handlers/smart-route-handler";
 import { KnownErrors } from "@stackframe/stack-shared";
 import { UsersCrud } from "@stackframe/stack-shared/dist/interface/crud/users";
 import { adaptSchema, adminAuthTypeSchema, yupArray, yupMixed, yupNumber, yupObject, yupString } from "@stackframe/stack-shared/dist/schema-fields";
-import { wait } from "@stackframe/stack-shared/dist/utils/promises";
 import yup from 'yup';
 import { usersCrudHandlers } from "../../users/crud";
 
@@ -208,8 +207,6 @@ export const GET = createSmartRouteHandler({
     }).defined(),
   }),
   handler: async (req) => {
-    await wait(5_000);
-
     const now = new Date();
     const includeAnonymous = req.query.include_anonymous === "true";
 
