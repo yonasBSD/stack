@@ -77,6 +77,8 @@ eval "$(direnv export <bash|zsh>)"
 
 When you do this, it is recommended that you give all workspaces a port prefix other than 81, to prevent accidental conflicts when you forgot to make a feature support the $NEXT_PUBLIC_STACK_PORT_PREFIX environment variable. (for example: first workspace at 181, second workspace at 182, etc.)
 
+Also, the cookies on different ports may conflict with each other. To prevent this, open `a.localhost:18101` and `b.localhost:18201` instead or normal localhost, so the cookies are scoped differently.
+
 ## Before creating a pull request
 
 Please make sure to:
