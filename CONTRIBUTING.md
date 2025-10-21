@@ -61,6 +61,9 @@ This will work for Claude Code and everything that runs inside the integrated te
 # .envrc
 # make sure to install direnv and add it to your shell rc file (e.g. ~/.bashrc or ~/.zshrc)
 export NEXT_PUBLIC_STACK_PORT_PREFIX=181
+
+# with this many processes running, it can be useful to add a custom title to all Node.js processes
+# export NODE_OPTIONS="--require=<path-to-the-workspace-folder>/scripts/set-process-title.js $NODE_OPTIONS"
 ```
 
 And make sure that `direnv` works in non-interactive login shells, make sure you added it to your ~/.bash_profile as well as your ~/.bashrc:
