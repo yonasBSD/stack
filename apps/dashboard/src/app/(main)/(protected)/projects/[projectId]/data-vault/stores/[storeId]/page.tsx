@@ -10,10 +10,6 @@ type Params = {
   storeId: string,
 };
 
-export const generateStaticParams = async () => {
-  return [];
-};
-
 export default async function Page({ params }: { params: Promise<Params> }) {
   const { storeId } = await params;
   return (
