@@ -8,17 +8,17 @@ export default async function Layout(
   props: { children: React.ReactNode, modal?: React.ReactNode, params: Promise<{ projectId: string }> }
 ) {
   return (
-    <Suspense fallback={<SiteLoadingIndicator />}>
-      <AdminAppProvider projectId={(await props.params).projectId}>
+    <AdminAppProvider projectId={(await props.params).projectId}>
 
-        {/* Pre-fetch the current URL to prevent request waterfalls */}
-        <UrlPrefetcher href="" />
+      {/* Pre-fetch the current URL to prevent request waterfalls */}
+      <UrlPrefetcher href="" />
 
-        <SidebarLayout projectId={(await props.params).projectId}>
+      <SidebarLayout projectId={(await props.params).projectId}>
+        <Suspense fallback={<SiteLoadingIndicator />}>
           {props.children}
           {props.modal}
-        </SidebarLayout>
-      </AdminAppProvider>
-    </Suspense>
+        </Suspense>
+      </SidebarLayout>
+    </AdminAppProvider>
   );
 }
