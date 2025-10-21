@@ -8,12 +8,12 @@ export default async function Layout(
   props: { children: React.ReactNode, modal?: React.ReactNode, params: Promise<{ projectId: string }> }
 ) {
   return (
-    <AdminAppProvider projectId={(await props.params).projectId}>
+    <AdminAppProvider>
 
       {/* Pre-fetch the current URL to prevent request waterfalls */}
       <UrlPrefetcher href="" />
 
-      <SidebarLayout projectId={(await props.params).projectId}>
+      <SidebarLayout>
         <Suspense fallback={<SiteLoadingIndicator />}>
           {props.children}
           {props.modal}
