@@ -5,7 +5,7 @@ export const generateStaticParams = async () => {
   return Object.keys(ALL_APPS).map(appId => ({ appId }));
 };
 
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 export default async function AppDetailsModalPage({ params }: { params: Promise<{ appId: AppId }> }) {
   const appId = (await params).appId;
