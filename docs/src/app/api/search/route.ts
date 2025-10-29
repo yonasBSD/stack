@@ -12,7 +12,6 @@ type SearchResult = {
 async function callMcpServer(search_query: string): Promise<SearchResult[]> {
   try {
     // Use localhost during development, production URL otherwise
-    // TODO: Temporarily testing with production MCP
     const mcpUrl = process.env.NODE_ENV === 'development'
       ? 'http://localhost:8104/api/internal/mcp'
       : 'https://mcp.stack-auth.com/api/internal/mcp';
