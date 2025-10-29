@@ -206,7 +206,7 @@ export default function PageClient() {
               </Typography>
               <Typography className="text-2xl font-semibold text-blue-900">
                 {completedCount === steps.length
-                  ? "All steps ready for deployment."
+                  ? "Vercel integration complete!"
                   : `${completedCount}/${steps.length} steps complete`}
               </Typography>
             </div>
