@@ -58,7 +58,7 @@ export default function MetricsPage(props: { toSetup: () => void }) {
   const suggestedApps = typedEntries(ALL_APPS)
     .filter(([_, app]) => app.stage === "stable")
     .map(([appId]) => appId)
-    .filter((appId) => !config.apps.installed[appId].enabled);
+    .filter((appId) => !config.apps.installed[appId]?.enabled);
 
   return (
     <PageLayout>

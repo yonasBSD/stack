@@ -465,7 +465,7 @@ const organizationConfigDefaults = {
   },
 
   apps: {
-    installed: typedFromEntries(appIds.map(appId => [appId, { enabled: false }])),
+    installed: {},
   },
 
   teams: {
