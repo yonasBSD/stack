@@ -50,9 +50,9 @@ export default function MetricsPage(props: { toSetup: () => void }) {
   const [includeAnonymous, setIncludeAnonymous] = useState(false);
 
   const data = (adminApp as any)[stackAppInternalsSymbol].useMetrics(includeAnonymous);
-
+  //
   const installedApps = Object.entries(config.apps.installed)
-    .filter(([_, appConfig]) => appConfig.enabled)
+    .filter(([_, appConfig]) => appConfig?.enabled)
     .map(([appId]) => appId as AppId);
 
   const suggestedApps = typedEntries(ALL_APPS)
