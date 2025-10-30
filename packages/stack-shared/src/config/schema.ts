@@ -5,7 +5,7 @@
 // OTHERWISE THINGS WILL GO BOOM!!
 
 import * as yup from "yup";
-import { ALL_APPS, AppId } from "../apps/apps-config";
+import { ALL_APPS } from "../apps/apps-config";
 import { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_THEMES, DEFAULT_EMAIL_THEME_ID } from "../helpers/emails";
 import * as schemaFields from "../schema-fields";
 import { productSchema, userSpecifiedIdSchema, yupBoolean, yupDate, yupMixed, yupNever, yupNumber, yupObject, yupRecord, yupString, yupTuple, yupUnion } from "../schema-fields";
@@ -465,9 +465,7 @@ const organizationConfigDefaults = {
   },
 
   apps: {
-    installed: ((key: AppId) => ({
-      enabled: false,
-    })),
+    installed: typedFromEntries(appIds.map(appId => [appId, { enabled: false }])) as Record<string, { enabled: boolean } | undefined>,
   },
 
   teams: {
@@ -587,7 +585,7 @@ typeAssertIs<DefaultsType<{ a: { b: Record<string, 123>, c: 456 } }, [{ a: { c: 
 
 type DeepReplaceAllowFunctionsForObjects<T> = T extends object
   ? (
-    string & AppId extends keyof T
+    string extends keyof T
     ? ((arg: Exclude<keyof T, number>) => DeepReplaceAllowFunctionsForObjects<T[keyof T]>) & ({ [K in keyof T]?: DeepReplaceAllowFunctionsForObjects<T[K]> } | {})
     : { [K in keyof T]: DeepReplaceAllowFunctionsForObjects<T[K]> }
   )
