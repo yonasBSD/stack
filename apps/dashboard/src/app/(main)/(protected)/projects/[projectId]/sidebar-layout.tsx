@@ -306,7 +306,7 @@ function SidebarContent({ projectId, onNavigate }: { projectId: string, onNaviga
   const pathname = usePathname();
   const project = stackAdminApp.useProject();
   const config = project.useConfig();
-  const enabledApps = typedEntries(config.apps.installed).filter(([_, appConfig]) => appConfig.enabled).map(([appId]) => appId);
+  const enabledApps = typedEntries(config.apps.installed).filter(([_, appConfig]) => appConfig?.enabled).map(([appId]) => appId);
   const [expandedSections, setExpandedSections] = useState<Set<AppId>>(getDefaultExpandedSections());
 
   const toggleSection = (appId: AppId) => {
