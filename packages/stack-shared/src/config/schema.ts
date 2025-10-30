@@ -167,16 +167,6 @@ const branchDomain = yupObject({
   allowLocalhost: yupBoolean(),
 });
 
-const branchWorkflowsSchema = yupObject({
-  availableWorkflows: yupRecord(
-    userSpecifiedIdSchema("workflowId"),
-    yupObject({
-      displayName: yupString(),
-      tsSource: yupString(),
-      enabled: yupBoolean(),
-    }),
-  ),
-});
 
 export const branchConfigSchema = canNoLongerBeOverridden(projectConfigSchema, ["sourceOfTruth"]).concat(yupObject({
   rbac: branchRbacSchema,
@@ -214,8 +204,6 @@ export const branchConfigSchema = canNoLongerBeOverridden(projectConfigSchema, [
       }),
     ),
   }),
-
-  workflows: branchWorkflowsSchema,
 }));
 
 
@@ -570,14 +558,6 @@ const organizationConfigDefaults = {
   dataVault: {
     stores: (key: string) => ({
       displayName: "Unnamed Vault",
-    }),
-  },
-
-  workflows: {
-    availableWorkflows: (key: string) => ({
-      displayName: "Unnamed Workflow",
-      tsSource: "Error: Workflow config is missing TypeScript source code.",
-      enabled: false,
     }),
   },
 } as const satisfies DefaultsType<OrganizationRenderedConfigBeforeDefaults, [typeof environmentConfigDefaults, typeof branchConfigDefaults, typeof projectConfigDefaults]>;
