@@ -155,7 +155,7 @@ function EditEmailServerDialog(props: {
         senderEmail: emailConfig.senderEmail,
         senderName: emailConfig.senderName,
         provider: emailConfig.type === 'resend' ? 'resend' : 'smtp',
-      },
+      } satisfies CompleteConfig['emails']['server']
     });
 
     toast({
