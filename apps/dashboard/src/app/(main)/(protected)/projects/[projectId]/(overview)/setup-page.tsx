@@ -55,10 +55,10 @@ export default function SetupPage(props: { toMetrics: () => void }) {
         </Typography>
         <CodeBlock
           language="bash"
-          content={`npx @stackframe/init-stack@latest`}
+          content={`pnpx @stackframe/init-stack@latest`}
           customRender={
             <div className="p-4 font-mono text-sm">
-              <span className={commandClasses}>npx</span> <span className={nameClasses}>@stackframe/init-stack@latest</span>
+              <span className={commandClasses}>pnpx</span> <span className={nameClasses}>@stackframe/init-stack@latest</span>
             </div>
           }
           title="Terminal"
