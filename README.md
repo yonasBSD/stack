@@ -137,14 +137,9 @@ pnpm codegen
 # Start the dependencies (DB, Inbucket, etc.) as Docker containers, seeding the DB with the Prisma schema
 # Make sure you have Docker (or OrbStack) installed and running
 pnpm restart-deps
-# restart-deps is the same as:
-#   pnpm stop-deps  (if the containers are already running)
-#   pnpm start-deps
 
 # Start the dev server
 pnpm dev
-# For systems with limited resources, you can run a minimal development setup with just the backend and dashboard
-# pnpm run dev:basic
 
 # In a different terminal, run tests in watch mode
 pnpm test
