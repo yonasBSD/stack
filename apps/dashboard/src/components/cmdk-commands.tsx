@@ -234,14 +234,12 @@ const AvailableAppPreview = memo(function AvailableAppPreview({
           )}
 
           {/* Description */}
-          {appFrontend.storeDescription && (
-            <div>
-              <h4 className="text-xs font-medium text-foreground mb-2">About</h4>
-              <div className="text-xs text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
-                {appFrontend.storeDescription}
-              </div>
+          <div>
+            <h4 className="text-xs font-medium text-foreground mb-2">About</h4>
+            <div className="text-xs text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
+              {appFrontend.storeDescription}
             </div>
-          )}
+          </div>
         </div>
       </ScrollArea>
     </div>

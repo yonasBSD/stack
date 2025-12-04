@@ -4,17 +4,23 @@ import { AppIcon } from "@/components/app-square";
 import { ALL_APPS_FRONTEND, type AppId } from "@/lib/apps-frontend";
 import { ALL_APPS, ALL_APP_TAGS } from "@stackframe/stack-shared/dist/apps/apps-config";
 import { Badge, Button, Dialog, DialogContent, DialogTitle, ScrollArea, cn } from "@stackframe/stack-ui";
-import { Check, ChevronLeft, ChevronRight, Info, Shield, X, Zap } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Shield, X, Zap } from "lucide-react";
 import Image from "next/image";
 import { FunctionComponent, useCallback, useEffect, useRef, useState } from "react";
 
 export function AppStoreEntry({
   appId,
+  isEnabled = false,
   onEnable,
+  onOpen,
+  onDisable,
   titleComponent: TitleComponent = "h1",
 }: {
   appId: AppId,
+  isEnabled?: boolean,
   onEnable: () => Promise<void>,
+  onOpen?: () => void,
+  onDisable?: () => Promise<void>,
   titleComponent?: FunctionComponent<any> | string,
 }) {
   const app = ALL_APPS[appId];
@@ -69,9 +75,10 @@ export function AppStoreEntry({
   ];
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
-      {/* Hero Section */}
-      <div className="relative px-6 py-8 border-b border-gray-200 dark:border-gray-800">
+    <ScrollArea className="h-full">
+      <div className="flex flex-col bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
+        {/* Hero Section */}
+        <div className="relative px-6 py-8 border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col md:flex-row gap-6 items-start">
             {/* App Icon */}
@@ -136,17 +143,35 @@ export function AppStoreEntry({
 
               {/* CTA Button */}
               <div className="flex items-center gap-4">
-                <Button
-                  onClick={onEnable}
-                  size="lg"
-                  className="px-8 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/20"
-                >
-                  Enable App
-                </Button>
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Info className="w-4 h-4" />
-                  <span>No additional cost</span>
-                </div>
+                {isEnabled ? (
+                  <>
+                    <Button
+                      onClick={onOpen}
+                      size="lg"
+                      className="px-8 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/20"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open App
+                    </Button>
+                    {onDisable && (
+                      <Button
+                        onClick={onDisable}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        Disable
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button
+                    onClick={onEnable}
+                    size="lg"
+                    className="px-8 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/20"
+                  >
+                    Enable App
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -239,8 +264,7 @@ export function AppStoreEntry({
         </div>
       )}
 
-      {/* Description Section */}
-      <ScrollArea className="flex-1">
+        {/* Description Section */}
         <div className="max-w-4xl mx-auto px-6 py-8">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
             About This App
@@ -249,7 +273,6 @@ export function AppStoreEntry({
             {appFrontend.storeDescription}
           </div>
         </div>
-      </ScrollArea>
 
       {/* Screenshot Preview Modal */}
       <Dialog open={previewIndex !== null} onOpenChange={(open) => !open && setPreviewIndex(null)}>
@@ -313,6 +336,7 @@ export function AppStoreEntry({
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </ScrollArea>
   );
 }

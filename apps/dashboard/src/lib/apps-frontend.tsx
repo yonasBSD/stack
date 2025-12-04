@@ -37,7 +37,7 @@ export type AppFrontend = {
   getBreadcrumbItems?: (stackAdminApp: StackAdminApp<false>, relativePart: string) => Promise<BreadcrumbDefinition | null | undefined>,
   navigationItems: AppNavigationItem[],
   screenshots: (string | StaticImageData)[],
-  storeDescription: React.ReactNode,
+  storeDescription: JSX.Element,
 };
 
 export function getAppPath(projectId: string, appFrontend: AppFrontend) {
