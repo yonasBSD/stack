@@ -3,10 +3,10 @@
 import { AppIcon } from "@/components/app-square";
 import { ALL_APPS_FRONTEND, type AppId } from "@/lib/apps-frontend";
 import { ALL_APPS, ALL_APP_TAGS } from "@stackframe/stack-shared/dist/apps/apps-config";
-import { Badge, Button, ScrollArea, cn } from "@stackframe/stack-ui";
-import { Check, Info, Shield, Zap } from "lucide-react";
+import { Badge, Button, Dialog, DialogContent, DialogTitle, ScrollArea, cn } from "@stackframe/stack-ui";
+import { Check, ChevronLeft, ChevronRight, Info, Shield, X, Zap } from "lucide-react";
 import Image from "next/image";
-import { FunctionComponent } from "react";
+import { FunctionComponent, useCallback, useEffect, useRef, useState } from "react";
 
 export function AppStoreEntry({
   appId,
@@ -19,6 +19,47 @@ export function AppStoreEntry({
 }) {
   const app = ALL_APPS[appId];
   const appFrontend = ALL_APPS_FRONTEND[appId];
+  const screenshotContainerRef = useRef<HTMLDivElement>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  const scrollScreenshots = (direction: 'left' | 'right') => {
+    if (screenshotContainerRef.current) {
+      const scrollAmount = 300; // scroll by ~1 screenshot width
+      const currentScroll = screenshotContainerRef.current.scrollLeft;
+      screenshotContainerRef.current.scrollTo({
+        left: direction === 'left' ? currentScroll - scrollAmount : currentScroll + scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const navigatePreview = useCallback((direction: 'prev' | 'next') => {
+    if (previewIndex === null) return;
+    const newIndex = direction === 'prev'
+      ? Math.max(0, previewIndex - 1)
+      : Math.min(appFrontend.screenshots.length - 1, previewIndex + 1);
+    setPreviewIndex(newIndex);
+  }, [previewIndex, appFrontend.screenshots.length]);
+
+  // Keyboard navigation for preview
+  useEffect(() => {
+    if (previewIndex === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigatePreview('prev');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigatePreview('next');
+      } else if (e.key === 'Escape') {
+        setPreviewIndex(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewIndex, navigatePreview]);
 
   // Feature highlights (can be customized per app in the future)
   const features = [
@@ -153,12 +194,35 @@ export function AppStoreEntry({
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               Preview
             </h2>
-            <ScrollArea className="w-full">
-              <div className="flex gap-4 pb-4">
+            <div className="relative group/screenshots">
+              {/* Left scroll button */}
+              <button
+                onClick={() => scrollScreenshots('left')}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-900/90 hover:bg-white dark:hover:bg-gray-800 p-2 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 group-hover/screenshots:opacity-100 transition-opacity focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+              </button>
+
+              {/* Right scroll button */}
+              <button
+                onClick={() => scrollScreenshots('right')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-900/90 hover:bg-white dark:hover:bg-gray-800 p-2 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 group-hover/screenshots:opacity-100 transition-opacity focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+              </button>
+
+              <div
+                ref={screenshotContainerRef}
+                className="flex gap-4 pb-4 overflow-x-auto scrollbar-hide scroll-smooth"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
                 {appFrontend.screenshots.map((screenshot: string, index: number) => (
-                  <div
+                  <button
                     key={index}
-                    className="relative h-64 w-96 rounded-xl shadow-lg flex-shrink-0 overflow-hidden border border-gray-200 dark:border-gray-800"
+                    onClick={() => setPreviewIndex(index)}
+                    className="relative h-64 w-96 rounded-xl shadow-lg flex-shrink-0 overflow-hidden border border-gray-200 dark:border-gray-800 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <Image
                       src={screenshot}
@@ -167,10 +231,10 @@ export function AppStoreEntry({
                       className="object-cover select-none"
                       draggable={false}
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </div>
       )}
@@ -182,14 +246,73 @@ export function AppStoreEntry({
             About This App
           </h2>
           <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-600 dark:prose-p:text-gray-400">
-            {appFrontend.storeDescription || (
-              <p className="text-gray-500 dark:text-gray-400 italic">
-                No additional information available.
-              </p>
-            )}
+            {appFrontend.storeDescription}
           </div>
         </div>
       </ScrollArea>
+
+      {/* Screenshot Preview Modal */}
+      <Dialog open={previewIndex !== null} onOpenChange={(open) => !open && setPreviewIndex(null)}>
+        <DialogContent className="max-w-7xl max-h-[95vh] p-0 bg-black/95 border-0" noCloseButton>
+          <DialogTitle className="sr-only">
+            {previewIndex !== null
+              ? `${app.displayName} screenshot ${previewIndex + 1} of ${appFrontend.screenshots.length}`
+              : 'Screenshot preview'}
+          </DialogTitle>
+          <div className="relative w-full h-full flex items-center justify-center p-4">
+            {previewIndex !== null && (
+              <>
+                {/* Close button */}
+                <button
+                  onClick={() => setPreviewIndex(null)}
+                  className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+                  aria-label="Close preview"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+
+                {/* Image counter */}
+                <div className="absolute top-4 left-4 z-50 bg-white/10 px-3 py-1 rounded-full text-white text-sm">
+                  {previewIndex + 1} / {appFrontend.screenshots.length}
+                </div>
+
+                {/* Previous button */}
+                {previewIndex > 0 && (
+                  <button
+                    onClick={() => navigatePreview('prev')}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors"
+                    aria-label="Previous screenshot"
+                  >
+                    <ChevronLeft className="w-8 h-8 text-white" />
+                  </button>
+                )}
+
+                {/* Next button */}
+                {previewIndex < appFrontend.screenshots.length - 1 && (
+                  <button
+                    onClick={() => navigatePreview('next')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors"
+                    aria-label="Next screenshot"
+                  >
+                    <ChevronRight className="w-8 h-8 text-white" />
+                  </button>
+                )}
+
+                {/* Image */}
+                <div className="relative w-full h-[85vh] flex items-center justify-center">
+                  <Image
+                    src={appFrontend.screenshots[previewIndex]}
+                    alt={`${app.displayName} screenshot ${previewIndex + 1}`}
+                    fill
+                    className="object-contain"
+                    sizes="100vw"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
