@@ -1,5 +1,12 @@
 # @stackframe/init-stack
 
+## 2.8.56
+
+### Patch Changes
+
+- Updated dependencies
+  - @stackframe/stack-shared@2.8.56
+
 ## 2.8.55
 
 ### Patch Changes
