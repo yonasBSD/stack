@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo pipefail
+set -e
 
 # ============= FORWARD MOCK OAUTH SERVER =============
 
@@ -65,7 +65,7 @@ mkdir -p "$WORK_DIR"
 echo "Copying files to working directory..."
 cp -vr /app/. "$WORK_DIR"/.
 
-# Find all files in the working directory that contain a STACK_ENV_VAR_SENTINEL and extract the unique sentinel strings.
+# Find all files in the apps directory that contain a STACK_ENV_VAR_SENTINEL and extract the unique sentinel strings.
 echo "Finding unhandled sentinels..."
 unhandled_sentinels=$(find "$WORK_DIR/apps" -type f -exec grep -l "STACK_ENV_VAR_SENTINEL" {} + | \
   xargs grep -h "STACK_ENV_VAR_SENTINEL" | \
