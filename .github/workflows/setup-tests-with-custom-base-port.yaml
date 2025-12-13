@@ -42,7 +42,7 @@ jobs:
         with:
           run: pnpm run dev &
           wait-on: |
-            http://localhost:8102
+            http://localhost:6902
           tail: true
           wait-for: 120s
           log-output-if: true
