@@ -66,6 +66,7 @@ echo "Copying files to working directory..."
 cp -vr /app/. "$WORK_DIR"/.
 
 # Find all files in the working directory that contain a STACK_ENV_VAR_SENTINEL and extract the unique sentinel strings.
+echo "Finding unhandled sentinels..."
 unhandled_sentinels=$(find "$WORK_DIR/apps" -type f -exec grep -l "STACK_ENV_VAR_SENTINEL" {} + | \
   xargs grep -h "STACK_ENV_VAR_SENTINEL" | \
   grep -o "STACK_ENV_VAR_SENTINEL[A-Z_]*" | \
@@ -74,6 +75,7 @@ unhandled_sentinels=$(find "$WORK_DIR/apps" -type f -exec grep -l "STACK_ENV_VAR
 # Choose an uncommon delimiter – here, we use the ASCII Unit Separator (0x1F)
 delimiter=$(printf '\037')
 
+echo "Replacing sentinels..."
 for sentinel in $unhandled_sentinels; do
   # The sentinel is like "STACK_ENV_VAR_SENTINEL_MY_VAR", so extract the env var name.
   env_var=${sentinel#STACK_ENV_VAR_SENTINEL_}
