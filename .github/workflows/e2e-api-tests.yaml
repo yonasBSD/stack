@@ -134,7 +134,7 @@ jobs:
       - name: Start run-email-queue in background
         uses: JarvusInnovations/background-action@v1.0.7
         with:
-          run: pnpm run run-email-queue --log-order=stream &
+          run: pnpm -C apps/backend run run-email-queue --log-order=stream &
           wait-on: |
             http://localhost:8102
           tail: true
