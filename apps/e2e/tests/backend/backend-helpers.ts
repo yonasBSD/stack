@@ -1315,7 +1315,7 @@ export namespace Team {
 
   export async function acceptInvitation() {
     const mailbox = backendContext.value.mailbox;
-    const messages = await mailbox.fetchMessages();
+    const messages = await mailbox.waitForMessagesWithSubject("join");
     const message = messages.findLast((message) => message.subject.includes("join")) ?? throwErr("Team invitation message not found");
     const code = message.body?.text.match(/http:\/\/localhost:12345\/some-callback-url\?code=([a-zA-Z0-9]+)/)?.[1] ?? throwErr("Team invitation code not found");
     const response = await niceBackendFetch("/api/v1/team-invitations/accept", {
